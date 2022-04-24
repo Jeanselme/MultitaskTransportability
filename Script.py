@@ -111,7 +111,7 @@ cov, ie, mask, time, event = process(labs_resample, outcomes)
 
 se = ShiftExperiment.create(model = 'joint', 
                      hyper_grid = hyper_grid,
-                     path = results + 'lstm+resampled', n_iter = 3)
+                     path = results + 'lstm+resampled')
 
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
@@ -127,7 +127,7 @@ se = ShiftExperiment.create(model = 'joint',
                      hyper_grid = hyper_grid_gru,
                      path = results + 'gru_d+mask')
 
-se.train(cov, time, event, training, mask, ie, oversampling_ratio = ratio)
+se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
 
 hyper_grid_joint = hyper_grid.copy()
