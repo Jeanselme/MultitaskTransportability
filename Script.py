@@ -83,7 +83,7 @@ cov, ie, mask, time, event = process(labs.copy(), outcomes)
 
 se = ShiftExperiment.create(model = 'joint', 
                      hyper_grid = hyper_grid,
-                     path = results + 'lstm_value', n_iter = 3)
+                     path = results + 'lstm_value')
 
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)

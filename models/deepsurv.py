@@ -114,7 +114,7 @@ class DeepSurv():
 def train_torch_model(model_torch, 
     x_train, e_train, t_train,
     x_valid, e_valid, t_valid,
-    epochs = 1000, pretrain_ite = 1000, lr = 0.0001, batch = 500, patience = 10, weight_decay = 0.001):
+    epochs = 1000, pretrain_ite = 1000, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
 
     # Initialization parameters
     t_bar = tqdm(range(epochs + pretrain_ite))
@@ -171,6 +171,8 @@ def train_torch_model(model_torch,
             # Update new best
             best_weight = deepcopy(model_torch.state_dict())
             best_loss = loss
+            wait = 0
+        else:
             wait = 0
         
         previous_loss = loss

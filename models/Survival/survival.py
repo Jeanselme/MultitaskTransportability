@@ -86,8 +86,8 @@ class DeepSurv(BatchForward):
         self.baselines = torch.cat(self.baselines, 0)
         return self
 
-    def predict_batch(self, h, horizon, risk = 1, batch = None):
-        forward, = self.forward(h, batch = batch)
+    def predict_batch(self, h, horizon, risk = 1):
+        forward, = self.forward_batch(h)
         cumulative_hazard = self.baselines[risk - 1].unsqueeze(0)
         if h.is_cuda:
             cumulative_hazard = cumulative_hazard.cuda()

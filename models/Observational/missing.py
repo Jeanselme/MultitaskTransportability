@@ -45,7 +45,7 @@ class Neural(BatchForward):
         return self.missing(h_time),
 
     def loss(self, alpha, h, i, m, l, batch = None, reduction = 'mean'):
-        predictions, = self.forward(h, i, m, l, batch)
+        predictions, = self.forward(h, i, m, l, batch = batch)
         submask = m[:, 1:, :] # First value not even predicted for each time series
         # Ignore all steps where nothing is observed adn therefore prediction on nothing
         observed = torch.max(submask, dim = 2)[0]

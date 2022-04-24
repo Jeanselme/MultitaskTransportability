@@ -82,7 +82,7 @@ class RNNJointTorch(BatchForward):
         """
             Compute loss model
         """
-        hp, hidden = self.embedding(x, i, m, l, batch = batch)
+        hp, hidden = self.embedding.forward(x, i, m, l, batch = batch)
         loss, losses = 0, {}
         if survival:
             loss = losses['survival'] = self.survival_model.loss(hp, e, batch, reduction)
@@ -96,7 +96,7 @@ class RNNJointTorch(BatchForward):
 
     def predict_batch(self, x, i, m, l, horizon, risk = 1):
         hp, _ = self.embedding.forward_batch(x, i, m, l)
-        return self.survival_model.predict(hp, horizon = horizon, risk = risk),
+        return self.survival_model.predict_batch(hp, horizon = horizon, risk = risk)[0],
 
     def observational_predict(self, x, i, m, l, batch = None):
         assert self.observational, "Do not model observational outcome"
