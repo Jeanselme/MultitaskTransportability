@@ -176,7 +176,7 @@ class RNNJoint():
 def train_torch_model(model_torch, 
     x_train, i_train, m_train, e_train, l_train, t_train,
     x_valid, i_valid, m_valid, e_valid, l_valid, t_valid,
-    epochs = 1000, pretrain_ite = 1000, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
+    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
 
     # Initialization parameters
     weights = {}
