@@ -2,31 +2,47 @@
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
-import sys
+
+import argparse
+parser = argparse.ArgumentParser(description = 'Running split.')
+parser.add_argument('--mode', '-m', type = int, default = 0, help = 'Mode for training (1, -1) : (weekend, weekday); (2, -2): (male, female); 0 : Random.', choices = range(-2,3))
+parser.add_argument('--sub', '-s', action='store_true', help = 'Run on subset of vitals.')
+args = parser.parse_args()
+
+
 
 # This number is used only for training, the testing happens only on the first 24 hours to ensure that
 # each patient has the same impact on the final performance computation
-labs = pd.read_csv('data/labs_first_day.csv', index_col = [0, 1], header = [0, 1])
-outcomes = pd.read_csv('data/outcomes_first_day.csv', index_col = 0)
+labs = pd.read_csv('data/labs_first_day_subselection.csv', index_col = [0, 1]) if args.sub else pd.read_csv('data/labs_first_day.csv', index_col = [0, 1], header = [0, 1])
+outcomes = pd.read_csv('data/outcomes_first_day{}.csv'.format('_subselection' if args.sub else ''), index_col = 0)
 
 outcomes['Death'] = ~outcomes.Death.isna()
 
 # # Split 
-weekend = int(sys.argv[1]) # Split on date - Weekend vs weekdays - If  -1 randomly split
 ratio = 0. 
-if weekend == -1:
-     print("Applied on Random")
-     training = pd.Series(outcomes.index.isin(outcomes.sample(frac = 0.8, random_state = 0).index), index = outcomes.index)
-     results = 'results/random/'
-elif weekend == 0:
-     print("Applied on Weekdays")
-     training = outcomes.Day <= 4
-     results = 'results/weekdays/'
-elif weekend == 1:
-     print("Applied on Weekends")
-     training = outcomes.Day > 4
-     results = 'results/weekends/'
-     ratio = (1-training).sum() / training.sum() 
+results = 'results_subselection/' if args.mode else 'results/' 
+if args.mode == 0:
+    print("Applied on Random")
+    training = pd.Series(outcomes.index.isin(outcomes.sample(frac = 0.8, random_state = 0).index), index = outcomes.index)
+    results += 'random/'
+elif args.mode == 1:
+    print("Applied on Weekdays")
+    training = outcomes.Day <= 4
+    results += 'weekdays/'
+elif args.mode == -1:
+    print("Applied on Weekends")
+    training = outcomes.Day > 4
+    results += 'weekends/'
+    ratio = (1-training).sum() / training.sum()
+elif args.mode == 2:
+    print("Applied on Male")
+    training = outcomes.GENDER == 'M'
+    results += 'male/'
+    ratio = (1-training).sum() / training.sum()
+elif args.mode == -2:
+    print("Applied on Female")
+    training = outcomes.GENDER == 'F'
+    results += 'female/'
 
 results += 'survival_'
 
