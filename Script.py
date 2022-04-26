@@ -20,7 +20,7 @@ outcomes['Death'] = ~outcomes.Death.isna()
 
 # # Split 
 ratio = 0. 
-results = 'results_subselection/' if args.mode else 'results/' 
+results = 'results_subselection/' if args.sub else 'results/' 
 if args.mode == 0:
     print("Applied on Random")
     training = pd.Series(outcomes.index.isin(outcomes.sample(frac = 0.8, random_state = 0).index), index = outcomes.index)
@@ -121,7 +121,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 labs_resample = labs.copy()
 labs_resample = labs_resample.set_index(pd.to_datetime(labs_resample.index.get_level_values('Time'), unit = 'D'), append = True) 
 labs_resample = labs_resample.groupby('Patient').resample('1H', level = 2).mean() 
-labs_resample.index = labs_resample.index.set_levels(labs_resample.index.levels[1].hour / 24, level = 1) 
+labs_resample.index = labs_resample.index.set_levels(labs_resample.index.get_level_values(1).hour / 24, level = 1) 
 
 cov, ie, mask, time, event = process(labs_resample, outcomes) 
 
