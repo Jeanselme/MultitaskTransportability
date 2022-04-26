@@ -80,7 +80,7 @@ class RNNJointTorch(BatchForward):
     
     def loss(self, x, i, m, e, l, t, batch = None, reduction = 'mean', survival = True, observational = True, weights = {}):
         """
-            Compute loss model
+            Compute loss model (need sorted if survival == True)
         """
         hp, hidden = self.embedding.forward(x, i, m, l, batch = batch)
         loss, losses = 0, {}
