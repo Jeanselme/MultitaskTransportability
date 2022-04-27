@@ -123,7 +123,7 @@ class ShiftExperiment():
         # Oversample training data
         oversampling = training_index
         if oversampling_ratio > 0:
-            oversampling = pd.Series(training_index).sample(frac = oversampling_ratio, replace = True)
+            oversampling = pd.Series(training_index).sample(frac = oversampling_ratio, replace = True).values
 
         # Split data
         train_cov, train_time, train_event = select(covariates, oversampling), select(time, oversampling), \
@@ -149,11 +149,13 @@ class ShiftExperiment():
                 continue
             model = self._fit(train_cov, train_ie, train_mask, train_event, train_time, hyper, 
                                 val_cov, val_ie, val_mask, val_event, val_time)
-            nll = self._nll(model, dev_cov, dev_ie, dev_mask, dev_event, dev_time)
-            if nll < self.best_nll:
-                self.best_hyper = hyper
-                self.best_model = model
-                self.best_nll = nll
+
+            if model is not None:
+                nll = self._nll(model, dev_cov, dev_ie, dev_mask, dev_event, dev_time)
+                if nll < self.best_nll:
+                    self.best_hyper = hyper
+                    self.best_model = model
+                    self.best_nll = nll
 
             self.iter += 1
             ShiftExperiment.save(self)
@@ -208,13 +210,13 @@ class ShiftExperiment():
 def select(df, oversample):
     """
         Allows to select from a multi index with over sampling
+        Ensure that the each resampled patients will have a different index
     """
     if df.index.nlevels > 1:
         results = {}
-        for patient, count in oversample.value_counts().iteritems():
+        for i, patient in enumerate(oversample):
             patient_df = df.loc[patient]
-            for i in range(count):
-                results.update({str(patient) + '_' + str(i): patient_df})
+            results[i] = patient_df
         return pd.concat(results)
     else:
-        return df.loc[oversample]
+        return df.loc[oversample].reset_index(drop=True)

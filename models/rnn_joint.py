@@ -41,9 +41,10 @@ class RNNJoint():
 
         self.model = train_torch_model(self.model,
             x_train, i_train, m_train, e_train, l_train, t_train, 
-            x_valid, i_valid, m_valid, e_valid, l_valid, t_valid, **params).eval()
+            x_valid, i_valid, m_valid, e_valid, l_valid, t_valid, **params)
 
         if self.model:
+            self.model = self.model.eval()
             self.model.compute_baseline(x_train, i_train, m_train, e_train, l_train, t_train, batch = 100)
             self.fitted = True
             return self
@@ -240,6 +241,7 @@ def train_torch_model(model_torch,
             t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), previous_losses['survival'].item()))
         else:
             t_bar.set_description("Loss survival: {:.3f}".format(loss.item()))
+        t_bar.set_postfix({'Minimal loss observed': best_loss})
         survival_loss = previous_losses['survival'].item()
         
         if np.isnan(survival_loss):
@@ -250,6 +252,7 @@ def train_torch_model(model_torch,
             # If less good than before
             if full and (wait == patience):
                 pretrain_ite = i + 1
+                wait = 0
             elif wait == patience:
                 break
             else:
@@ -263,6 +266,6 @@ def train_torch_model(model_torch,
             wait = 0
         
         previous_loss = survival_loss
-    
+
     model_torch.load_state_dict(best_weight)            
     return model_torch

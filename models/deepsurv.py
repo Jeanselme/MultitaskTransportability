@@ -114,7 +114,7 @@ class DeepSurv():
 def train_torch_model(model_torch, 
     x_train, e_train, t_train,
     x_valid, e_valid, t_valid,
-    epochs = 1000, pretrain_ite = 1000, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
+    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
 
     # Initialization parameters
     t_bar = tqdm(range(epochs + pretrain_ite))
@@ -156,6 +156,7 @@ def train_torch_model(model_torch,
         loss = model_torch.loss(x_valid, e_valid, batch = batch).item()
         
         t_bar.set_description("Loss survival: {:.3f}".format(loss))
+        t_bar.set_postfix({'Minimal loss observed': best_loss})
 
         if np.isnan(loss):
             print('ERROR - Loss')

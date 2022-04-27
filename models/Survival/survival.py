@@ -52,7 +52,7 @@ class DeepSurv(BatchForward):
         predictions, = self.forward(h, batch = batch)
 
         ## Sum all previous event : **Require order by decreasing time**
-        p_cumsum = torch.log(torch.clamp(torch.cumsum(torch.exp(predictions), 0), 1e-10))
+        p_cumsum = torch.logcumsumexp(predictions, 0)
         for ei in range(1, self.outputdim + 1):
             loss -= torch.sum(predictions[e == ei][:, ei - 1])
             loss += torch.sum(p_cumsum[e == ei][:, ei - 1])

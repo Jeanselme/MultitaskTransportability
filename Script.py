@@ -87,7 +87,7 @@ se.train(last, outcomes.Remaining, outcomes.Death, training, oversampling_ratio 
 
 hyper_grid = {
         "layers": [1, 2, 3],
-        "hidden": [10, 30, 60],
+        "hidden": [10, 30],
         "survival_args": [{"layers": l} for l in layers],
 
         "lr" : [1e-3, 1e-4],
@@ -121,7 +121,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 labs_resample = labs.copy()
 labs_resample = labs_resample.set_index(pd.to_datetime(labs_resample.index.get_level_values('Time'), unit = 'D'), append = True) 
 labs_resample = labs_resample.groupby('Patient').resample('1H', level = 2).mean() 
-labs_resample.index = labs_resample.index.set_levels(labs_resample.index.get_level_values(1).hour / 24, level = 1) 
+labs_resample.index = labs_resample.index.map(lambda x: (x[0], x[1].hour / 24))
 
 cov, ie, mask, time, event = process(labs_resample, outcomes) 
 
