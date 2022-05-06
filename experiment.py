@@ -189,11 +189,12 @@ class ShiftExperiment():
 
         lr = hyperparameter.pop('lr', 0.0001)
         batch = hyperparameter.pop('batch', 500)
+        full = hyperparameter.pop('full_finetune', False)
 
         if self.model == "joint":
             model = RNNJoint(inputdim, outputdim, **hyperparameter)
             return model.fit(covariates, interevent, mask, event, time,
-                             val_cov, val_ie, val_mask, val_event, val_time, lr = lr, batch = batch)
+                             val_cov, val_ie, val_mask, val_event, val_time, lr = lr, batch = batch, full_finetune = full)
         elif self.model == "deepsurv":
             model = DeepSurv(inputdim, outputdim, **hyperparameter)
             return model.fit(covariates, event, time,

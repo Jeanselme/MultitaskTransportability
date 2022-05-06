@@ -177,7 +177,7 @@ class RNNJoint():
 def train_torch_model(model_torch, 
     x_train, i_train, m_train, e_train, l_train, t_train,
     x_valid, i_valid, m_valid, e_valid, l_valid, t_valid,
-    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
+    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001, full_finetune = False):
 
     # Initialization parameters
     weights = {}
@@ -205,7 +205,10 @@ def train_torch_model(model_torch,
             full = False
             wait = 0
             model_torch.load_state_dict(best_weight)
-            optimizer = torch.optim.Adam(model_torch.survival_model.parameters(), lr = lr, weight_decay = weight_decay)
+            if full_finetune:
+                optimizer = torch.optim.Adam(model_torch.parameters(), lr = lr, weight_decay = weight_decay)
+            else:
+                optimizer = torch.optim.Adam(model_torch.survival_model.parameters(), lr = lr, weight_decay = weight_decay)
         elif full:
             weights = compute_dwa(previous_losses, previous_losses_2)
 

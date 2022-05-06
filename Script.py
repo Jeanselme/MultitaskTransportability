@@ -188,3 +188,13 @@ se = ShiftExperiment.create(model = 'joint',
 
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+
+# Full Fine Tune
+hyper_grid_joint['full_finetune'] = [True] 
+
+se = ShiftExperiment.create(model = 'joint', 
+                     hyper_grid = hyper_grid_joint,
+                     path = results + 'joint_full_finetune_value+time+mask')
+
+
+se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
