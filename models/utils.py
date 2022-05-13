@@ -66,7 +66,7 @@ def compute_dwa(previous, previous_2, T = 2):
     if 'observational' not in previous_2 or 'observational' not in previous:
         return {}
     else:
-        weights = nn.Softmax(0)(np.exp(previous['observational'].detach() - np.log(T) - previous_2['observational'].detach()))
+        weights = nn.Softmax(0)((previous['observational'].detach() - np.log(T) - previous_2['observational'].detach()).exp())
         return {'observational': weights}
 
 class PositiveLinear(nn.Module):
