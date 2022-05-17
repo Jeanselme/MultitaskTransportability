@@ -70,7 +70,7 @@ class RNNJoint():
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
         x, i, m, _, l, _ = self.preprocess(x, i, m)
-        return self.model.predict(x, i, m, l, horizon = horizon, risk  = risk, batch = batch).detach().cpu().numpy()
+        return self.model.predict(x, i, m, l, horizon = horizon, risk = risk, batch = batch).detach().cpu().numpy()
 
     def observational_predict(self, x, i, m, batch = None):
         if not self.fitted:
@@ -215,6 +215,8 @@ def train_torch_model(model_torch,
         model_torch.train()
         # Random batch for backprop training
         np.random.shuffle(batch_order)
+        previous_losses_2 = previous_losses.copy()
+        previous_losses = {}
         for j in range(nbatches):
             order = np.sort(batch_order[j*batch:(j+1)*batch]) # Need to conserve order
             xb, ib, mb, tb, eb, lb = x_train[order], i_train[order], m_train[order],\
@@ -224,10 +226,17 @@ def train_torch_model(model_torch,
                 continue
 
             optimizer.zero_grad()
-            loss, _ = model_torch.loss(xb, ib, mb, eb, lb, tb, 
+            loss, losses = model_torch.loss(xb, ib, mb, eb, lb, tb, 
                         observational = full, weights = weights)
+            for l in losses:
+                if l in previous_losses:
+                    previous_losses[l].append(losses[l])
+                else:
+                    previous_losses[l] = [losses[l]]
             loss.backward()
             optimizer.step()
+
+        previous_losses = {l: torch.mean(torch.stack(previous_losses[l])) for l in previous_losses}
         
         # Evaluate validation loss - Batch
         if x_valid is None:
@@ -235,17 +244,16 @@ def train_torch_model(model_torch,
             continue
         
         model_torch.eval()
-        previous_losses_2 = previous_losses.copy()
-        loss, previous_losses = model_torch.loss(x_valid, i_valid,
+        loss, losses = model_torch.loss(x_valid, i_valid,
                                 m_valid, e_valid, l_valid, t_valid, 
                                 batch = batch, observational = full)
         
         if full:
-            t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), previous_losses['survival'].item()))
+            t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), losses['survival'].item()))
         else:
             t_bar.set_description("Loss survival: {:.3f}".format(loss.item()))
         t_bar.set_postfix({'Minimal loss observed': best_loss})
-        survival_loss = previous_losses['survival'].item()
+        survival_loss = losses['survival'].item()
         
         if np.isnan(survival_loss):
             print('ERROR - Loss')
