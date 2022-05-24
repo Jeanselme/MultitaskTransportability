@@ -4,6 +4,10 @@ import torch.nn as nn
 import torch
 
 def pandas_to_list(x):
+    """
+        Split pandas dataframe with multi index into list of array
+        (Allow to split into multiple patients)
+    """
     if isinstance(x, pd.DataFrame) or isinstance(x, pd.Series):
         result = []
         for patient in x.index.unique(level = 0):
@@ -17,6 +21,9 @@ def pandas_to_list(x):
         raise ValueError("Data not in the right format")
 
 def create_nn(inputdim, layers, layer_unit = nn.Linear, activation = 'ReLU'):
+    """
+        Create a simple multi layer perceptron
+    """
     if activation == 'ReLU6':
         act = nn.ReLU6()
     elif activation == 'ReLU':
@@ -54,6 +61,10 @@ def ones_like(x):
     return torch.ones((x.size(0), x.size(1), 1), requires_grad = True, device = x.get_device() if x.is_cuda else 'cpu')
 
 def sort_given_t(*args, t):
+    """
+        Sort any parameter (tensor of same size than t) with regard to t
+        Necessary for DeepSurv that assume all sorted for loss computation
+    """
     t, order = torch.sort(t, 0, descending = True) # Wants data to be from unobserved to observed
     order = order.squeeze()
     return [arg[order] for arg in args] + [t]
@@ -70,6 +81,9 @@ def compute_dwa(previous, previous_2, T = 2):
         return {'observational': weights}
 
 class PositiveLinear(nn.Module):
+    """
+        Constraint layer with positive weights for monotonic neural network
+    """
     def __init__(self, in_features, out_features, bias = False):
         super(PositiveLinear, self).__init__()
         self.in_features = in_features
@@ -96,6 +110,9 @@ class PositiveLinear(nn.Module):
             return nn.functional.linear(input, self.log_weight ** 2)
 
 class BatchForward(nn.Module):
+    """
+        Abstract object to simplify batching
+    """
 
     def forward_batch(self, *args):
         raise NotImplementedError()
