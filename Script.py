@@ -85,6 +85,19 @@ se = ShiftExperiment.create(model = 'deepsurv',
 
 se.train(last, outcomes.Remaining, outcomes.Death, training, oversampling_ratio = ratio)
 
+# Count
+count = (~labs.isna()).groupby('Patient').sum() # Compute counts
+
+se = ShiftExperiment.create(model = 'deepsurv', 
+                     hyper_grid = {"survival_args": [{"layers": l} for l in layers],
+                        "lr" : [1e-3, 1e-4],
+                        "batch": [100, 250]
+                     }, 
+                     path = results + 'deepsurv_count')
+
+
+se.train(pd.concat([last, count], axis = 1), outcomes.Remaining, outcomes.Death, training, oversampling_ratio = ratio)
+
 hyper_grid = {
         "layers": [1, 2, 3],
         "hidden": [10, 30],
