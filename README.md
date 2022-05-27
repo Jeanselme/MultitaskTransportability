@@ -1,5 +1,5 @@
 # ClinicalPresence
-Code to reproduce the results of the paper [Robust Modelling of Clinical Presence using Deep Joint](http://arxiv.org/abs/2205.13481). This paper shows how modelling the interaction between patient and the healthcare system in a multi task setting might improve both predictive performance and robustness to change in the observational process.
+Code to reproduce the results of the paper [DeepJoint: Robust Survival Modelling Under Clinical Presence Shift](http://arxiv.org/abs/2205.13481). This paper shows how modelling the interaction between patient and the healthcare system in a multi task setting might improve both predictive performance and robustness to change in the observational process.
 
 ## Model
 The model consists in a recurrent neural network with input each new observation. The embedding is then used for modelling the survival outcome using a DeepSurv model S, and in parallel the observation process:
