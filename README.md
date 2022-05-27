@@ -1,5 +1,5 @@
 # ClinicalPresence
-Code to reproduce the results of the paper [Robust Modelling of Clinical Presence using Deep Joint](). This paper shows how modelling the interaction between patient and the healthcare system in a multi task setting might improve both predictive performance and robustness to change in the observational process.
+Code to reproduce the results of the paper [Robust Modelling of Clinical Presence using Deep Joint](http://arxiv.org/abs/2205.13481). This paper shows how modelling the interaction between patient and the healthcare system in a multi task setting might improve both predictive performance and robustness to change in the observational process.
 
 ## Model
 The model consists in a recurrent neural network with input each new observation. The embedding is then used for modelling the survival outcome using a DeepSurv model S, and in parallel the observation process:
@@ -21,20 +21,15 @@ model.predict(covariates, inter_observation, mask)
 ## Reproduce paper's results
 To reproduce the paper's results:
 
-0. Clone the repository with dependencies: `git clone git@github.com:XX/ClinicalPresence.git --recursive`.
+0. Clone the repository with dependencies: `git clone git@github.com:Jeanselme/ClinicalPresence.git --recursive`.
 1. Create a conda environment with all necessary libraries `pytorch`, `pandas`, `numpy`.
 2. Download the MIMIC III dataset and extracts data following `1. Temporal Lab Extraction.ipynb`.
 3. Then sub select the laboratory of interest using `2. Analysis.ipynb`.
 4. And finally run the experiments `3. Death - Survival.ipynb`, run the notebook with the different split of interest (weekend, weekday or random) -- `Script.py` allows to run this same set of experiments in command line.
 5. Analyse the results using `4. Analysis Results.ipynb`.
-
-## Compare to a new method
-Adding a new method consists in adding a child to `Experiment` in `experiment.py` with functions to compute the nll and fit the model.
-Then, add the method in `examples/experiments_paper.py` and follow the previous point. 
-`TODOs` have been added to make the addition of a new method easier.
-
 ## Future directions
 - Competing risks.
+- MIMIC IV.
 
 # Setup
 ## Structure
@@ -42,7 +37,7 @@ All models are in `models` folder, itself divided in the RNN structure, the Obse
 
 ## Clone
 ```
-git clone git@github.com:XX/ClinicalPresence.git --recursive
+git clone git@github.com:Jeanselme/ClinicalPresence.git --recursive
 ```
 
 ## Requirements
