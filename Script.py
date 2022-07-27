@@ -5,7 +5,7 @@ import numpy as np
 
 import argparse
 parser = argparse.ArgumentParser(description = 'Running split.')
-parser.add_argument('--mode', '-m', type = int, default = 0, help = 'Mode for training (1, -1) : (weekend, weekday); (2, -2): (male, female); 0 : Random.', choices = range(-2,3))
+parser.add_argument('--mode', '-m', type = int, default = 0, help = 'Mode for training (1, -1) : (weekend, weekday); (2, -2): (male, female); (3, -3): (teaching, non teaching); 0 : Random.', choices = range(-3,4))
 parser.add_argument('--dataset', '-d',  type = str, default = 'mimic', help = 'Dataset to use: mimic, eicu, ')
 parser.add_argument('--sub', '-s', action='store_true', help = 'Run on subset of vitals.')
 args = parser.parse_args()
@@ -14,10 +14,12 @@ args = parser.parse_args()
 
 # This number is used only for training, the testing happens only on the first 24 hours to ensure that
 # each patient has the same impact on the final performance computation
-labs = pd.read_csv('data/{}/labs_first_day_subselection.csv'.format(args.dataset), index_col = [0, 1]) if args.sub else pd.read_csv('data/labs_first_day.csv', index_col = [0, 1], header = [0, 1])
+labs = pd.read_csv('data/{}/labs_first_day_subselection.csv'.format(args.dataset), index_col = [0, 1]) if args.sub else pd.read_csv('data/{}/labs_first_day.csv'.format(args.dataset), index_col = [0, 1], header = [0, 1])
 outcomes = pd.read_csv('data/{}/outcomes_first_day{}.csv'.format(args.dataset, '_subselection' if args.sub else ''), index_col = 0)
 
-outcomes['Death'] = ~outcomes.Death.isna()
+if args.dataset == 'mimic':
+    outcomes['Death'] = ~outcomes.Death.isna()
+    assert abs(args.mode) < 3, 'Mode not adapted for the selected dataset.'
 
 # # Split 
 ratio = 0. 
@@ -45,6 +47,14 @@ elif args.mode == -2:
     print("Applied on Female")
     training = outcomes.GENDER == 'F'
     results += 'female/'
+elif args.mode == -3:
+    print("Applied on Teaching hospitals")
+    training = outcomes.teachingstatus == 't'
+    results += 'teaching/'
+elif args.mode == 3:
+    print("Applied on Non Teaching hospitals")
+    training = outcomes.teachingstatus == 'f'
+    results += 'nonteaching/'
 
 results += 'survival_'
 
