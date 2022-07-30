@@ -241,7 +241,7 @@ cov, ie, mask, time, event = process(labs_selection, outcomes)
 
 se = ShiftExperiment.create(model = 'joint', 
                     hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value')
+                    path = results + 'joint+value-long')
 
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
@@ -261,7 +261,7 @@ cov, ie, mask, time, event = process(labs_selection, outcomes)
 
 se = ShiftExperiment.create(model = 'joint', 
                     hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value')
+                    path = results + 'joint+value-time')
 
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
@@ -281,7 +281,7 @@ cov, ie, mask, time, event = process(labs_selection, outcomes)
 
 se = ShiftExperiment.create(model = 'joint', 
                     hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value')
+                    path = results + 'joint+value-missing')
 
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
