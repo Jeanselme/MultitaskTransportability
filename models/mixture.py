@@ -64,7 +64,7 @@ class Mixture(BatchForward):
         return temp_res, long_res, miss_res, alphas
 
     def loss(self, h, x, i, m, l, batch = None, reduction = 'mean'):
-        loss_temp = loss_long = loss_miss = 0
+        loss_temp = loss_long = loss_miss = torch.zeros(1)
         alphas = self.alphas(h[:, :-1])
         for j, (temp, long, miss) in enumerate(zip(self.temporal, self.longitudinal, self.missing)):
             # Elbo loss (alpha could be computed exactly)
