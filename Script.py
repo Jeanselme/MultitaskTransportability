@@ -8,6 +8,7 @@ parser = argparse.ArgumentParser(description = 'Running split.')
 parser.add_argument('--mode', '-m', type = int, default = 0, help = 'Mode for training (1, -1) : (weekend, weekday); (2, -2): (male, female); (3, -3): (teaching, non teaching); 0 : Random.', choices = range(-3,4))
 parser.add_argument('--dataset', '-d',  type = str, default = 'mimic', help = 'Dataset to use: mimic, eicu, ')
 parser.add_argument('--sub', '-s', action='store_true', help = 'Run on subset of vitals.')
+parser.add_argument('--over', '-o', action='store_true', help = 'Oversample smaller set.')
 args = parser.parse_args()
 
 
@@ -37,12 +38,12 @@ elif args.mode == -1:
     print("Applied on Weekends")
     training = outcomes.Day > 4
     results += 'weekends/'
-    ratio = (1-training).sum() / training.sum()
+    ratio = (1-training).sum() / training.sum() if args.over else 0
 elif args.mode == 2:
     print("Applied on Male")
     training = outcomes.GENDER == 'M'
     results += 'male/'
-    ratio = (1-training).sum() / training.sum()
+    ratio = (1-training).sum() / training.sum() if args.over else 0
 elif args.mode == -2:
     print("Applied on Female")
     training = outcomes.GENDER == 'F'
@@ -51,6 +52,7 @@ elif args.mode == -3:
     print("Applied on Teaching hospitals")
     training = outcomes.teachingstatus == 't'
     results += 'teaching/'
+    ratio = (1-training).sum() / training.sum() if args.over else 0
 elif args.mode == 3:
     print("Applied on Non Teaching hospitals")
     training = outcomes.teachingstatus == 'f'
