@@ -215,8 +215,6 @@ def train_torch_model(model_torch,
         model_torch.train()
         # Random batch for backprop training
         np.random.shuffle(batch_order)
-        previous_losses_2 = previous_losses.copy()
-        previous_losses = {}
         for j in range(nbatches):
             order = np.sort(batch_order[j*batch:(j+1)*batch]) # Need to conserve order
             xb, ib, mb, tb, eb, lb = x_train[order], i_train[order], m_train[order],\
@@ -226,17 +224,10 @@ def train_torch_model(model_torch,
                 continue
 
             optimizer.zero_grad()
-            loss, losses = model_torch.loss(xb, ib, mb, eb, lb, tb, 
+            loss, _ = model_torch.loss(xb, ib, mb, eb, lb, tb, 
                         observational = full, weights = weights)
-            for l in losses:
-                if l in previous_losses:
-                    previous_losses[l].append(losses[l])
-                else:
-                    previous_losses[l] = [losses[l]]
             loss.backward()
             optimizer.step()
-
-        previous_losses = {l: torch.mean(torch.stack(previous_losses[l])) for l in previous_losses}
         
         # Evaluate validation loss - Batch
         if x_valid is None:
@@ -244,16 +235,17 @@ def train_torch_model(model_torch,
             continue
         
         model_torch.eval()
-        loss, losses = model_torch.loss(x_valid, i_valid,
+        previous_losses_2 = previous_losses.copy()
+        loss, previous_losses = model_torch.loss(x_valid, i_valid,
                                 m_valid, e_valid, l_valid, t_valid, 
                                 batch = batch, observational = full)
         
         if full:
-            t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), losses['survival'].item()))
+            t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), previous_losses['survival'].item()))
         else:
             t_bar.set_description("Loss survival: {:.3f}".format(loss.item()))
         t_bar.set_postfix({'Minimal loss observed': best_loss})
-        survival_loss = losses['survival'].item()
+        survival_loss = previous_losses['survival'].item()
         
         if np.isnan(survival_loss):
             print('ERROR - Loss')
