@@ -177,7 +177,7 @@ class RNNJoint():
 def train_torch_model(model_torch, 
     x_train, i_train, m_train, e_train, l_train, t_train,
     x_valid, i_valid, m_valid, e_valid, l_valid, t_valid,
-    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001, full_finetune = False):
+    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 2, weight_decay = 0.001, full_finetune = False):
 
     # Initialization parameters
     weights = {}
@@ -200,11 +200,12 @@ def train_torch_model(model_torch,
 
     for i in t_bar:
         if i == pretrain_ite:
-            # End pretraining 
+            # End pretraining => Train only the survival model
             ## Upload best weights and reinitalize losses
+            previous_loss = survival_loss
             full = False
             wait = 0
-            model_torch.load_state_dict(best_weight)
+
             if full_finetune:
                 optimizer = torch.optim.Adam(model_torch.parameters(), lr = lr, weight_decay = weight_decay)
             else:
@@ -251,24 +252,24 @@ def train_torch_model(model_torch,
             print('ERROR - Loss')
             return None
 
-        if survival_loss > previous_loss:
-            # If less good than before
-            if full and (wait == patience):
-                pretrain_ite = i + 1
-                wait = 0
-            elif wait == patience:
-                break
-            else:
-                wait += 1
-        elif survival_loss < best_loss:
+        if survival_loss < best_loss:
             # Update new best
             best_weight = deepcopy(model_torch.state_dict())
             best_loss = survival_loss
             wait = 0
+
+        if loss > previous_loss:
+            # If less good than before
+            if full and (wait == patience):
+                pretrain_ite = i + 1
+            elif wait == patience:
+                break
+            else:
+                wait += 1
         else:
             wait = 0
         
-        previous_loss = survival_loss
+        previous_loss = loss
 
     model_torch.load_state_dict(best_weight)            
     return model_torch
