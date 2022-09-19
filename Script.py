@@ -197,6 +197,19 @@ se = ShiftExperiment.create(model = 'joint',
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
+# Joint GRU-D
+hyper_grid_joint_gru = hyper_grid_joint.copy()
+hyper_grid_joint_gru["typ"] = ['GRUD']
+
+labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float)], axis = 1)
+cov, ie, mask, time, event = process(labs_selection, outcomes)
+
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid_joint_gru,
+                    path = results + 'joint_gru_d+mask')
+
+se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+
 # Joint with full input
 labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float)], 1)
 labs_selection['Time'] = labs_selection.index.to_frame().reset_index(drop = True).groupby('Patient').diff().fillna(0).values
@@ -210,6 +223,23 @@ hyper_grid_joint['mixture_mask'] = [mask_mixture]
 se = ShiftExperiment.create(model = 'joint', 
                     hyper_grid = hyper_grid_joint,
                     path = results + 'joint_value+time+mask')
+
+
+se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+
+# Joint GRU-D with full input
+labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float)], 1)
+labs_selection['Time'] = labs_selection.index.to_frame().reset_index(drop = True).groupby('Patient').diff().fillna(0).values
+cov, ie, mask, time, event = process(labs_selection, outcomes)
+
+mask_mixture = np.full(len(cov.columns), False)
+mask_mixture[:len(labs.columns)] = True
+
+hyper_grid_joint_gru['mixture_mask'] = [mask_mixture] 
+
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid_joint_gru,
+                    path = results + 'joint_gru_d_value+time+mask')
 
 
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
