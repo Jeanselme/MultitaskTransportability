@@ -40,14 +40,14 @@ elif args.mode == -1:
     results += 'weekends/'
     ratio = (1-training).sum() / training.sum() if args.over else 0
 elif args.mode == 2:
-    print("Applied on Male")
-    training = outcomes.GENDER == 'M'
-    results += 'male/'
+    print("Applied on Private")
+    training = outcomes.INSURANCE == 'Private'
+    results += 'insured/'
     ratio = (1-training).sum() / training.sum() if args.over else 0
 elif args.mode == -2:
-    print("Applied on Female")
-    training = outcomes.GENDER == 'F'
-    results += 'female/'
+    print("Applied on Public")
+    training = outcomes.INSURANCE != 'Private'
+    results += 'uninsured/'
 elif args.mode == -3:
     print("Applied on Teaching hospitals")
     training = outcomes.teachingstatus == 't'
