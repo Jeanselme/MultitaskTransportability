@@ -176,7 +176,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "temporal": ["point"], 
         "temporal_args": [{"layers": l} for l in layers],
         "longitudinal": ["neural"], 
@@ -266,7 +266,7 @@ cov, ie, mask, time, event = process(labs_selection, outcomes)
 hyper_grid_joint = hyper_grid.copy() #L
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "longitudinal": ["neural"], 
         "longitudinal_args": [{"layers": l} for l in layers],
     }
@@ -283,7 +283,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "temporal": ["point"], 
         "temporal_args": [{"layers": l} for l in layers],
     }
@@ -299,7 +299,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "missing": ["neural"], 
         "missing_args": [{"layers": l} for l in layers],
     }
@@ -315,7 +315,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "longitudinal": ["neural"], 
         "longitudinal_args": [{"layers": l} for l in layers],
         "temporal": ["point"], 
@@ -333,7 +333,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "longitudinal": ["neural"], 
         "longitudinal_args": [{"layers": l} for l in layers],
         "missing": ["neural"], 
@@ -351,7 +351,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "temporal": ["point"], 
         "temporal_args": [{"layers": l} for l in layers],
         "missing": ["neural"], 
@@ -374,7 +374,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.1, 0.5],
+        "weight": [0.5],
         "temporal": ["point"], 
         "temporal_args": [{"layers": l} for l in layers],
         "longitudinal": ["neural"], 
