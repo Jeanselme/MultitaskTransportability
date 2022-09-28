@@ -176,7 +176,7 @@ se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
-        "weight": [0.5],
+        "weight": [0.1, 0.3, 0.5],
         "temporal": ["point"], 
         "temporal_args": [{"layers": l} for l in layers],
         "longitudinal": ["neural"], 
@@ -255,162 +255,162 @@ se = ShiftExperiment.create(model = 'joint',
 se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
 
-##################
-# ABLATION STUDY #
-##################
+# ##################
+# # ABLATION STUDY #
+# ##################
 
-# Measure impact of modelling the outcome with same input
-labs_selection = labs.copy()
-cov, ie, mask, time, event = process(labs_selection, outcomes)
+# # Measure impact of modelling the outcome with same input
+# labs_selection = labs.copy()
+# cov, ie, mask, time, event = process(labs_selection, outcomes)
 
-hyper_grid_joint = hyper_grid.copy() #L
-hyper_grid_joint.update(
-    {
-        "weight": [0.5],
-        "longitudinal": ["neural"], 
-        "longitudinal_args": [{"layers": l} for l in layers],
-    }
-)
+# hyper_grid_joint = hyper_grid.copy() #L
+# hyper_grid_joint.update(
+#     {
+#         "weight": [0.5],
+#         "longitudinal": ["neural"], 
+#         "longitudinal_args": [{"layers": l} for l in layers],
+#     }
+# )
 
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value-long')
-
-
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint+value-long')
 
 
-hyper_grid_joint = hyper_grid.copy()
-hyper_grid_joint.update(
-    {
-        "weight": [0.5],
-        "temporal": ["point"], 
-        "temporal_args": [{"layers": l} for l in layers],
-    }
-)
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value-time')
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
 
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+# hyper_grid_joint = hyper_grid.copy()
+# hyper_grid_joint.update(
+#     {
+#         "weight": [0.5],
+#         "temporal": ["point"], 
+#         "temporal_args": [{"layers": l} for l in layers],
+#     }
+# )
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint+value-time')
 
 
-hyper_grid_joint = hyper_grid.copy()
-hyper_grid_joint.update(
-    {
-        "weight": [0.5],
-        "missing": ["neural"], 
-        "missing_args": [{"layers": l} for l in layers],
-    }
-)
-
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value-missing')
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
 
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+# hyper_grid_joint = hyper_grid.copy()
+# hyper_grid_joint.update(
+#     {
+#         "weight": [0.5],
+#         "missing": ["neural"], 
+#         "missing_args": [{"layers": l} for l in layers],
+#     }
+# )
 
-hyper_grid_joint = hyper_grid.copy()
-hyper_grid_joint.update(
-    {
-        "weight": [0.5],
-        "longitudinal": ["neural"], 
-        "longitudinal_args": [{"layers": l} for l in layers],
-        "temporal": ["point"], 
-        "temporal_args": [{"layers": l} for l in layers],
-    }
-)
-
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value-long-time')
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint+value-missing')
 
 
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
-hyper_grid_joint = hyper_grid.copy()
-hyper_grid_joint.update(
-    {
-        "weight": [0.5],
-        "longitudinal": ["neural"], 
-        "longitudinal_args": [{"layers": l} for l in layers],
-        "missing": ["neural"], 
-        "missing_args": [{"layers": l} for l in layers],
-    }
-)
+# hyper_grid_joint = hyper_grid.copy()
+# hyper_grid_joint.update(
+#     {
+#         "weight": [0.5],
+#         "longitudinal": ["neural"], 
+#         "longitudinal_args": [{"layers": l} for l in layers],
+#         "temporal": ["point"], 
+#         "temporal_args": [{"layers": l} for l in layers],
+#     }
+# )
 
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value-long-missing')
-
-
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
-
-hyper_grid_joint = hyper_grid.copy()
-hyper_grid_joint.update(
-    {
-        "weight": [0.5],
-        "temporal": ["point"], 
-        "temporal_args": [{"layers": l} for l in layers],
-        "missing": ["neural"], 
-        "missing_args": [{"layers": l} for l in layers],
-    }
-)
-# Joint temporal output only
-labs_selection = labs.copy()
-cov, ie, mask, time, event = process(labs_selection, outcomes)
-
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint+value-time-missing')
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint+value-long-time')
 
 
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+
+# hyper_grid_joint = hyper_grid.copy()
+# hyper_grid_joint.update(
+#     {
+#         "weight": [0.5],
+#         "longitudinal": ["neural"], 
+#         "longitudinal_args": [{"layers": l} for l in layers],
+#         "missing": ["neural"], 
+#         "missing_args": [{"layers": l} for l in layers],
+#     }
+# )
+
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint+value-long-missing')
 
 
-# Impact of input
-hyper_grid_joint = hyper_grid.copy()
-hyper_grid_joint.update(
-    {
-        "weight": [0.5],
-        "temporal": ["point"], 
-        "temporal_args": [{"layers": l} for l in layers],
-        "longitudinal": ["neural"], 
-        "longitudinal_args": [{"layers": l} for l in layers],
-        "missing": ["neural"], 
-        "missing_args": [{"layers": l} for l in layers],
-    }
-)
-# Joint with value + time only
-labs_selection = labs.copy()
-labs_selection['Time'] = labs_selection.index.to_frame().reset_index(drop = True).groupby('Patient').diff().fillna(0).values
-cov, ie, mask, time, event = process(labs_selection, outcomes)
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
-mask_mixture = np.full(len(cov.columns), False)
-mask_mixture[:len(labs.columns)] = True
+# hyper_grid_joint = hyper_grid.copy()
+# hyper_grid_joint.update(
+#     {
+#         "weight": [0.5],
+#         "temporal": ["point"], 
+#         "temporal_args": [{"layers": l} for l in layers],
+#         "missing": ["neural"], 
+#         "missing_args": [{"layers": l} for l in layers],
+#     }
+# )
+# # Joint temporal output only
+# labs_selection = labs.copy()
+# cov, ie, mask, time, event = process(labs_selection, outcomes)
 
-hyper_grid_joint['mixture_mask'] = [mask_mixture] 
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint+value-time-missing')
 
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint_value+time')
 
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
-# Joint with value + mask only
-labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float)], 1)
-cov, ie, mask, time, event = process(labs_selection, outcomes)
 
-mask_mixture = np.full(len(cov.columns), False)
-mask_mixture[:len(labs.columns)] = True
+# # Impact of input
+# hyper_grid_joint = hyper_grid.copy()
+# hyper_grid_joint.update(
+#     {
+#         "weight": [0.5],
+#         "temporal": ["point"], 
+#         "temporal_args": [{"layers": l} for l in layers],
+#         "longitudinal": ["neural"], 
+#         "longitudinal_args": [{"layers": l} for l in layers],
+#         "missing": ["neural"], 
+#         "missing_args": [{"layers": l} for l in layers],
+#     }
+# )
+# # Joint with value + time only
+# labs_selection = labs.copy()
+# labs_selection['Time'] = labs_selection.index.to_frame().reset_index(drop = True).groupby('Patient').diff().fillna(0).values
+# cov, ie, mask, time, event = process(labs_selection, outcomes)
 
-hyper_grid_joint['mixture_mask'] = [mask_mixture] 
+# mask_mixture = np.full(len(cov.columns), False)
+# mask_mixture[:len(labs.columns)] = True
 
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint_value+mask')
+# hyper_grid_joint['mixture_mask'] = [mask_mixture] 
 
-se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint_value+time')
+
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
+
+# # Joint with value + mask only
+# labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float)], 1)
+# cov, ie, mask, time, event = process(labs_selection, outcomes)
+
+# mask_mixture = np.full(len(cov.columns), False)
+# mask_mixture[:len(labs.columns)] = True
+
+# hyper_grid_joint['mixture_mask'] = [mask_mixture] 
+
+# se = ShiftExperiment.create(model = 'joint', 
+#                     hyper_grid = hyper_grid_joint,
+#                     path = results + 'joint_value+mask')
+
+# se.train(cov, time, event, training, ie, mask, oversampling_ratio = ratio)
 
