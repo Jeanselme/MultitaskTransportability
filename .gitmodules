@@ -1,3 +1,6 @@
 [submodule "FeatureAnalysis"]
 	path = FeatureAnalysis
 	url = git@github.com:Jeanselme/FeatureAnalysis.git
+[submodule "SyntheticClinicalPresence"]
+	path = SyntheticClinicalPresence
+	url = git@github.com:Jeanselme/SyntheticClinicalPresence.git
