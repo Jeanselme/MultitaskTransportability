@@ -22,6 +22,9 @@ class DeepSurv():
         self.fitted = False
         self.cuda = cuda
 
+    def pickle(self):
+        pass
+
     def loss(self, x, ie_to, ie_since, m, e, t, batch = None):
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
