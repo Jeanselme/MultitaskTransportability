@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import torch
+import copy
 import os
 import io
 
@@ -42,7 +43,7 @@ class ShiftExperiment():
         self.tosave = save
 
     @classmethod
-    def create(cls, model = 'joint', hyper_grid = None, n_iter = 100, 
+    def create(cls, model = 'joint', hyper_grid = None, n_iter = 2, 
                 random_seed = 0, times = [1, 7, 14, 30], path = 'results', normalization = True, force = False, save = True):
         print(path)
         if not(force):
@@ -65,7 +66,9 @@ class ShiftExperiment():
     def load(path):
         file = open(path, 'rb')
         if torch.cuda.is_available():
-            return pickle.load(file)
+            obj = pickle.load(file)
+            obj.best_model.unpickle()
+            return obj
         else:
             se = CPU_Unpickler(file).load()
             se.best_model.cuda = False
@@ -75,8 +78,11 @@ class ShiftExperiment():
     def save(obj):
         with open(obj.path + '.pickle', 'wb') as output:
             try:
+                obj.best_model.pickle()
                 pickle.dump(obj, output)
+                obj.best_model.unpickle()
             except Exception as e:
+                raise(e)
                 print('Unable to save object')
                 
     def save_results(self, predictions, used):
@@ -87,17 +93,19 @@ class ShiftExperiment():
 
         return res
 
-    def train(self, covariates, time, event, training, interevent = None, mask = None, oversampling_ratio = 0.):
+    def train(self, covariates, time, event, training, ie_to = None, ie_since = None, mask = None, oversampling_ratio = 0.):
         """
             Model is selected with train / test split and maximum likelihood
 
             Args:
                 covariates (Dataframe n * d): Observed covariates
-                interevent (Dataframe n * 1): Interevent times (time between observation)
-                mask (Dataframe n * d): Indicator observation
+                
                 time (Dataframe n): Time of censoring or event
                 event (Dataframe n): Event indicator
                 training (Dataframe n): Indicate which points should be used for training
+                ie_to (Dataframe n * d): Interevent times (time to next observation)
+                ie_since (Dataframe n * d): Interevent times (time since last observation)
+                mask (Dataframe n * d): Indicator observation
                 oversampling_ratio (float): Over sample data in the training set.
 
             Returns:
@@ -128,17 +136,20 @@ class ShiftExperiment():
         # Split data
         train_cov, train_time, train_event = select(covariates, oversampling), select(time, oversampling), \
                                              select(event, oversampling)
-        train_ie = None if interevent is None else select(interevent, oversampling)
+        train_iet = None if ie_to is None else select(ie_to, oversampling)
+        train_ies = None if ie_since is None else select(ie_since, oversampling)
         train_mask = None if mask is None else select(mask, oversampling)
 
         dev_cov, dev_time, dev_event = covariates.loc[dev_index], time.loc[dev_index], \
                                             event.loc[dev_index]
-        dev_ie = None if interevent is None else interevent.loc[dev_index]
+        dev_iet = None if ie_to is None else ie_to.loc[dev_index]
+        dev_ies = None if ie_since is None else ie_since.loc[dev_index]
         dev_mask = None if mask is None else mask.loc[dev_index]
 
         val_cov, val_time, val_event = covariates.loc[val_index], time.loc[val_index], \
                                             event.loc[val_index]
-        val_ie = None if interevent is None else interevent.loc[val_index]
+        val_iet = None if ie_to is None else ie_to.loc[val_index]
+        val_ies = None if ie_since is None else ie_since.loc[val_index]
         val_mask = None if mask is None else mask.loc[val_index]
 
         # Train on subset one domain
@@ -147,11 +158,11 @@ class ShiftExperiment():
             if i < self.iter:
                 # When object is reloaded - Avoid to recompute same parameters
                 continue
-            model = self._fit(train_cov, train_ie, train_mask, train_event, train_time, hyper, 
-                                val_cov, val_ie, val_mask, val_event, val_time)
+            model = self._fit(train_cov, train_iet, train_ies, train_mask, train_event, train_time, hyper, 
+                                val_cov, val_iet, val_ies, val_mask, val_event, val_time)
 
             if model is not None:
-                nll = self._nll(model, dev_cov, dev_ie, dev_mask, dev_event, dev_time)
+                nll = self._nll(model, dev_cov, dev_iet, dev_ies, dev_mask, dev_event, dev_time)
                 if nll < self.best_nll:
                     self.best_hyper = hyper
                     self.best_model = model
@@ -160,15 +171,15 @@ class ShiftExperiment():
             self.iter += 1
             ShiftExperiment.save(self)
 
-        return self.save_results(self.predict(covariates, interevent, mask, training.index), annotated_training)
+        return self.save_results(self.predict(covariates, ie_to, ie_since, mask, training.index), annotated_training)
 
-    def predict(self, covariates, interevent, mask, index = None):
+    def predict(self, covariates, ie_to, ie_since, mask, index = None):
         """
             Predicts the risk for each given covariates
 
             Args:
                 covariates (Dataframe): Data on which to train
-                interevent (Dataframe n * d): Interevent times (time between observation)
+                ie_to, ie_since (Dataframe n * d): Interevent times (time to next observation, time since last)
                 mask (Dataframe n * d): Indicator observation
 
             Returns:
@@ -176,9 +187,9 @@ class ShiftExperiment():
         """
         if self.best_model is None:
             raise ValueError('Model not trained - Call .fit')
-        return pd.DataFrame(1 - self.best_model.predict(covariates, interevent, mask, horizon = self.times, risk = 1, batch = 50), index = index, columns = self.times)
+        return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = self.times, risk = 1, batch = 50), index = index, columns = self.times)
             
-    def _fit(self, covariates, interevent, mask, event, time, hyperparameter, val_cov, val_ie, val_mask, val_event, val_time):
+    def _fit(self, covariates, ie_to, ie_since, mask, event, time, hyperparameter, val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time):
         """
             Fits the model on the given data
         """
@@ -193,8 +204,8 @@ class ShiftExperiment():
 
         if self.model == "joint":
             model = RNNJoint(inputdim, outputdim, **hyperparameter)
-            return model.fit(covariates, interevent, mask, event, time,
-                             val_cov, val_ie, val_mask, val_event, val_time, lr = lr, batch = batch, full_finetune = full)
+            return model.fit(covariates, ie_to, ie_since, mask, event, time,
+                             val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time, lr = lr, batch = batch, full_finetune = full)
         elif self.model == "deepsurv":
             model = DeepSurv(inputdim, outputdim, **hyperparameter)
             return model.fit(covariates, event, time,
@@ -202,11 +213,11 @@ class ShiftExperiment():
         else:
              raise ValueError('Model {} unknown'.format(self.model))
         
-    def _nll(self, model, covariates, interevent, mask, event, time):
+    def _nll(self, model, covariates, ie_to, ie_since, mask, event, time):
         """
             Computes the negative loglikelihood of the model on the given data
         """
-        return model.loss(covariates, interevent, mask, event, time)
+        return model.loss(covariates, ie_to, ie_since, mask, event, time)
 
 def select(df, oversample):
     """
