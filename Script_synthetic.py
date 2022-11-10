@@ -135,124 +135,124 @@ hyper_grid = {
         "batch": [100, 250]
     }
 
-# # LSTM with value
-# cov, ie_to, ie_since, mask, time, event = process(labs.copy(), outcomes)
+# LSTM with value
+cov, ie_to, ie_since, mask, time, event = process(labs.copy(), outcomes)
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid,
-#                     path = results + 'lstm_value',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid,
+                    path = results + 'lstm_value',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# # LSTM with mask and time
-# labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
-# cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
+# LSTM with mask and time
+labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
+cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
 
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid,
-#                     path = results + 'lstm_value+time+mask',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid,
+                    path = results + 'lstm_value+time+mask',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# # Resampling
-# labs_resample = labs.copy()
-# labs_resample = labs_resample.set_index(pd.to_datetime(labs_resample.index.get_level_values('Time'), unit = 'D'), append = True) 
-# labs_resample = labs_resample.groupby('Patient').resample('1H', level = 2).mean() 
-# labs_resample.index = labs_resample.index.map(lambda x: (x[0], (x[1] - datetime.datetime(1970,1,1)).total_seconds() / (3600 * 24)))
-# # Ensure last time step is the same
-# shift = labs_resample.groupby('Patient').apply(lambda x: x.index[-1][1]) - labs.groupby('Patient').apply(lambda x: x.index[-1][1])
-# labs_resample.index = labs_resample.index.map(lambda x: (x[0], (x[1] - shift[x[0]])))
+# Resampling
+labs_resample = labs.copy()
+labs_resample = labs_resample.set_index(pd.to_datetime(labs_resample.index.get_level_values('Time'), unit = 'D'), append = True) 
+labs_resample = labs_resample.groupby('Patient').resample('1H', level = 2).mean() 
+labs_resample.index = labs_resample.index.map(lambda x: (x[0], (x[1] - datetime.datetime(1970,1,1)).total_seconds() / (3600 * 24)))
+# Ensure last time step is the same
+shift = labs_resample.groupby('Patient').apply(lambda x: x.index[-1][1]) - labs.groupby('Patient').apply(lambda x: x.index[-1][1])
+labs_resample.index = labs_resample.index.map(lambda x: (x[0], (x[1] - shift[x[0]])))
 
-# cov, ie_to, ie_since, mask, time, event = process(labs_resample, outcomes)
+cov, ie_to, ie_since, mask, time, event = process(labs_resample, outcomes)
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid,
-#                     path = results + 'lstm+resampled',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid,
+                    path = results + 'lstm+resampled',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# hyper_grid_joint = hyper_grid.copy()
-# hyper_grid_joint.update(
-#     {
-#         "weight": [0.1, 0.3, 0.5],
-#         "temporal": ["point"], 
-#         "temporal_args": [{"layers": l} for l in layers],
-#         "longitudinal": ["neural"], 
-#         "longitudinal_args": [{"layers": l} for l in layers],
-#         "missing": ["neural"], 
-#         "missing_args": [{"layers": l} for l in layers],
-#     }
-# )
+hyper_grid_joint = hyper_grid.copy()
+hyper_grid_joint.update(
+    {
+        "weight": [0.1, 0.3, 0.5],
+        "temporal": ["point"], 
+        "temporal_args": [{"layers": l} for l in layers],
+        "longitudinal": ["neural"], 
+        "longitudinal_args": [{"layers": l} for l in layers],
+        "missing": ["neural"], 
+        "missing_args": [{"layers": l} for l in layers],
+    }
+)
 
-# # Joint full
-# cov, ie_to, ie_since, mask, time, event = process(labs.copy(), outcomes)
+# Joint full
+cov, ie_to, ie_since, mask, time, event = process(labs.copy(), outcomes)
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid_joint,
-#                     path = results + 'joint+value',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid_joint,
+                    path = results + 'joint+value',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# # Joint GRU-D
-# hyper_grid_joint_gru = hyper_grid_joint.copy()
-# hyper_grid_joint_gru["typ"] = ['GRUD']
+# Joint GRU-D
+hyper_grid_joint_gru = hyper_grid_joint.copy()
+hyper_grid_joint_gru["typ"] = ['GRUD']
 
-# labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float)], axis = 1)
-# cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
+labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float)], axis = 1)
+cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid_joint_gru,
-#                     path = results + 'joint_gru_d+mask',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid_joint_gru,
+                    path = results + 'joint_gru_d+mask',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# # Joint with full input
-# labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
-# cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
+# Joint with full input
+labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
+cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
 
-# mask_mixture = np.full(len(cov.columns), False)
-# mask_mixture[:len(labs.columns)] = True
+mask_mixture = np.full(len(cov.columns), False)
+mask_mixture[:len(labs.columns)] = True
 
-# hyper_grid_joint['mixture_mask'] = [mask_mixture] 
+hyper_grid_joint['mixture_mask'] = [mask_mixture] 
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid_joint,
-#                     path = results + 'joint_value+time+mask',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid_joint,
+                    path = results + 'joint_value+time+mask',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# # Joint GRU-D with full input
-# labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
-# cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
+# Joint GRU-D with full input
+labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
+cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
 
-# mask_mixture = np.full(len(cov.columns), False)
-# mask_mixture[:len(labs.columns)] = True
+mask_mixture = np.full(len(cov.columns), False)
+mask_mixture[:len(labs.columns)] = True
 
-# hyper_grid_joint_gru['mixture_mask'] = [mask_mixture] 
+hyper_grid_joint_gru['mixture_mask'] = [mask_mixture] 
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid_joint_gru,
-#                     path = results + 'joint_gru_d_value+time+mask',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid_joint_gru,
+                    path = results + 'joint_gru_d_value+time+mask',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# # Full Fine Tune
-# hyper_grid_joint['full_finetune'] = [True] 
+# Full Fine Tune
+hyper_grid_joint['full_finetune'] = [True] 
 
-# se = ShiftExperiment.create(model = 'joint', 
-#                     hyper_grid = hyper_grid_joint,
-#                     path = results + 'joint_full_finetune_value+time+mask',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'joint', 
+                    hyper_grid = hyper_grid_joint,
+                    path = results + 'joint_full_finetune_value+time+mask',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(cov, time, event, training, ie_to, ie_since, mask)
+se.train(cov, time, event, training, ie_to, ie_since, mask)
 
 # GRUD
 hyper_grid_gru = hyper_grid.copy()
