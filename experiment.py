@@ -43,7 +43,7 @@ class ShiftExperiment():
         self.tosave = save
 
     @classmethod
-    def create(cls, model = 'joint', hyper_grid = None, n_iter = 2, 
+    def create(cls, model = 'joint', hyper_grid = None, n_iter = 100, 
                 random_seed = 0, times = [1, 7, 14, 30], path = 'results', normalization = True, force = False, save = True):
         print(path)
         if not(force):
