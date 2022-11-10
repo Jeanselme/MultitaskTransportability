@@ -22,14 +22,14 @@ class DeepSurv():
         self.fitted = False
         self.cuda = cuda
 
-    def loss(self, x, i, m, e, t, batch = None):
+    def loss(self, x, ie_to, ie_since, m, e, t, batch = None):
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
         x, e, t = self.preprocess(x, e, t)
         x, e, t = sort_given_t(x, e, t = t)
         return self.model.loss(x, e, batch = batch).item() # Only survival loss
 
-    def predict(self, x, i, m, horizon = None, risk = 1, batch = None):
+    def predict(self, x, ie_to, ie_since, m, horizon = None, risk = 1, batch = None):
         """
         Predict the outcome
 
@@ -114,7 +114,7 @@ class DeepSurv():
 def train_torch_model(model_torch, 
     x_train, e_train, t_train,
     x_valid, e_valid, t_valid,
-    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
+    epochs = 1, pretrain_ite = 1, lr = 0.0001, batch = 500, patience = 2, weight_decay = 0.001):
 
     # Initialization parameters
     t_bar = tqdm(range(epochs + pretrain_ite))

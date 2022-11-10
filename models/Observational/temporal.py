@@ -35,23 +35,25 @@ class Weibull(BatchForward):
             temporal_args (dict, optional): Arguments for the model. Defaults to {}.
         """
         super(Weibull, self).__init__()
+        self.outputdim = outputdim
 
         # Only one Weibull
-        self.shape = nn.Parameter(-torch.randn(1)) # k = exp(shape) 
-        self.scale = nn.Parameter(-torch.randn(1)) # b = exp(scale)
+        self.shape = nn.Parameter(-torch.randn(self.outputdim)) # k = exp(shape) 
+        self.scale = nn.Parameter(-torch.randn(self.outputdim)) # b = exp(scale)
 
     def forward_batch(self, h, i, m, l):
         sh, sc = self.shape, self.scale
-        i_used = i[:, 1:].flatten() + 1e-8
+        i_used = i[:, 1:, :].flatten(0, 1) + 1e-8
         survival_log = - torch.pow(torch.exp(sc) * i_used, torch.exp(sh))
         density_log = sc + sh + (torch.exp(sh) - 1) * (torch.log(i_used) + sc) \
                 + survival_log
 
-        return torch.exp(survival_log).reshape([h.shape[0], h.shape[1] - 1]), density_log.reshape([h.shape[0], h.shape[1] - 1])
+        # TODO: Check if reshape does what you want
+        return torch.exp(survival_log).reshape([h.shape[0], h.shape[1] - 1, self.outputdim]), density_log.reshape([h.shape[0], h.shape[1] - 1, self.outputdim])
 
     def loss(self, alpha, h, i, m, l, batch = None, reduction = 'mean'):
         _, density = self.forward(h, i, m, l, batch = batch)
-        observed = torch.max(m[:, 1:, :], dim = 2)[0]
+        observed = m[:, 1:, :]
         loss = - ((alpha * density)[observed]).sum() 
 
         if reduction == 'mean':
@@ -80,17 +82,25 @@ class Point(BatchForward):
         self.cumulative = nn.Sequential(*create_nn(inputdim + 1, temporal_layer + [outputdim], PositiveLinear, 'Tanh')[:-1], nn.Softplus())
 
     def forward_batch(self, h, i, m, l):
-        tau = i[:, 1:].unsqueeze(-1)
+        tau = i[:, 1:, :]
         hidden_tau = h[:, :-1, :]  # Last point not observed
 
-        # Flatten
+        # Flatten the temporal and patient dimensions -> Keep number of covariates
         tau = torch.flatten(tau, 0, 1) 
         hidden_tau = torch.flatten(hidden_tau, 0, 1)
 
         tau.requires_grad = True # For autograd
-        cumulative = self.cumulative(torch.cat((hidden_tau, tau), 1)) - self.cumulative(torch.cat((hidden_tau, torch.zeros_like(tau)), 1))
-        cumulative = cumulative.reshape([h.shape[0], h.shape[1] - 1])
-        gradient = grad(torch.mean(cumulative), tau, create_graph=True, retain_graph=True)[0].reshape([h.shape[0], h.shape[1] - 1])
+        cumulative = []
+        # Need to iterate to avoid that the time of the other prediciton impacts the predictions
+        # Select the dim for which we predict
+        for dim in range(self.outputdim):
+            cumulative_dim = self.cumulative(torch.cat((hidden_tau, tau[:, dim].unsqueeze(-1)), 1)) - self.cumulative(torch.cat((hidden_tau, torch.zeros_like(tau[:, dim].unsqueeze(-1))), 1))
+            cumulative_dim = cumulative_dim[:, dim]
+            cumulative_dim = cumulative_dim.reshape([h.shape[0], h.shape[1] - 1, 1])
+            cumulative.append(cumulative_dim)
+        cumulative = torch.cat(cumulative, axis = -1)
+
+        gradient = grad(torch.sum(cumulative), tau, create_graph=True, retain_graph=True)[0].reshape([h.shape[0], h.shape[1] - 1, self.outputdim])
 
         if h.is_cuda:
             gradient = gradient.cuda()
@@ -100,7 +110,7 @@ class Point(BatchForward):
 
     def loss(self, alpha, h, i, m, l, batch = None, reduction = 'mean'):
         _, gradient, cumulative = self.forward(h, i, m, l, batch = batch)
-        observed = torch.max(m[:, 1:, :], dim = 2)[0]
+        observed = m[:, 1:, :]
 
         with torch.no_grad():
             gradient.clamp_(min = 1e-8)

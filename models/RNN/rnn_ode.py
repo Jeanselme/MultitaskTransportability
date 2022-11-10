@@ -17,7 +17,6 @@ class ODESolver(nn.Module):
                                 nn.Linear(50, input_dimension), nn.Tanh())
             self.ode_func.forward_y = self.ode_func.forward
             self.ode_func.forward = lambda t, x: self.ode_func.forward_y(x)
-            
 
         self.method = method
         self.odeint_rtol = odeint_rtol
@@ -36,20 +35,22 @@ class ODESolver(nn.Module):
             rtol=self.odeint_rtol, atol=self.odeint_atol, method = self.method)
         pred_y = pred_y.permute(1,2,0)
         
-        indices = indices.repeat(1, pred_y.size(1), 1)
-        
-        return torch.gather(pred_y, 2, indices).squeeze()
+        # Repeat to select on second dimension the right index of time
+        indices = indices.unsqueeze(-1).unsqueeze(-1).repeat(1, x.shape[1], time_eval.shape[0])        
+        return torch.gather(pred_y, 2, indices)[:, :, 0] # Select first as it is repeated 
 
     def split_time(self, t):
         # Compute where we need to estimate hidden state
-        res, index = torch.unique(t, sorted=True, return_inverse=True)
-        max_time = max(res.max().item(), 1e-4)
+        res, index = torch.unique(t.abs().min(dim = 1)[0], sorted=True, return_inverse=True) #  Compute the min for all covariates since last time evaluated
+        max_time = max(res[-1], 1e-4)
+        if self.step_size > max_time:
+            self.step_size = max_time / 20
         
         # Compute linspace with given stepsize and add points of interest
         ls = torch.linspace(0, max_time, int(max_time / self.step_size)).to(t.device)
         times, indices = torch.unique(torch.cat([res, ls]), sorted=True, return_inverse=True)
 
-        return times, indices[:res.size(0)][index].unsqueeze(1)
+        return times, indices[:res.size(0)][index]
         
 
 class ODECell(RNNCellBase):
@@ -69,11 +70,7 @@ class ODECell(RNNCellBase):
             self.dropout = None
 
     def forward(self, x, t, hx = None):
-        if hx is None:
-            hx = torch.zeros(x.size(0), self.hidden_size, 
-                dtype=x.dtype, device=x.device)
-
-        hx = self.ode(hx, t)
+        hx = self.ode(hx, t) if t.max() > 0 else hx
         return self.cell(x, hx) if self.dropout is None else self.dropout(self.cell(x, hx))
 
 
@@ -82,3 +79,9 @@ class ODE(GRUD):
     def __init__(self, inputdim, hidden, layers, bias=True, batch_first=True):
         super(ODE, self).__init__(inputdim, hidden, layers, bias)
         self.cell = ODECell(inputdim, hidden, bias)
+
+    def pickle(self):
+        self.cell.ode.ode_func.forward = None
+
+    def unpickle(self):
+        self.cell.ode.ode_func.forward = lambda t, x: self.cell.ode.ode_func.forward_y(x)

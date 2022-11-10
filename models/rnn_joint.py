@@ -20,15 +20,22 @@ class RNNJoint():
         self.model = self.model.double()
         self.fitted = False
         self.cuda = cuda
+
+    def pickle(self):
+        self.model.pickle()
+    
+    def unpickle(self):
+        self.model.unpickle()
         
-    def fit(self, x_train, i_train, m_train, e_train, t_train, 
-             x_valid = None, i_valid = None, m_valid = None, e_valid = None, t_valid = None, **params):
+    def fit(self, x_train, ie_to_train, ie_since_train, m_train, e_train, t_train, 
+             x_valid = None, ie_to_valid = None, ie_since_valid = None, m_valid = None, e_valid = None, t_valid = None, **params):
         """
         Fit the model
 
         Args:
             x (List of Array or DataFrame n * [t_n * d]): List of Patient's time series
-            i (List of Array or DataFrame n * [t_n * d]): List of inter events times 
+            i_to (List of Array or DataFrame n * [t_n * d]): List of inter events times (time to the next event)
+            ie_since (List of Array or DataFrame n * [t_n * d]): List of inter events times (time since the last event)
             m (List of Array or DataFrame n * [t_n * d]): List of mask 
             t (List of Array or DataFrame n * [t_n], optional): List of time to event # Used for survival only
             e (List or DataFrame n, optional): List of event (binary). Defaults to None.
@@ -36,28 +43,29 @@ class RNNJoint():
         Returns:
             self
         """
-        x_train, i_train, m_train, e_train, l_train, t_train = self.preprocess(x_train, i_train, m_train, e_train, t_train)
-        x_valid, i_valid, m_valid, e_valid, l_valid, t_valid = self.preprocess(x_valid, i_valid, m_valid, e_valid, t_valid)
+        x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t_train = self.preprocess(x_train, ie_to_train, ie_since_train, m_train, e_train, t_train)
+        x_valid, ie_to_valid, ie_since_valid, m_valid, e_valid, l_valid, t_valid = self.preprocess(x_valid, ie_to_valid, ie_since_valid, m_valid, e_valid, t_valid)
 
         self.model = train_torch_model(self.model,
-            x_train, i_train, m_train, e_train, l_train, t_train, 
-            x_valid, i_valid, m_valid, e_valid, l_valid, t_valid, **params)
+            x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t_train, 
+            x_valid, ie_to_valid, ie_since_valid, m_valid, e_valid, l_valid, t_valid, **params)
 
         if self.model:
             self.model = self.model.eval()
-            self.model.compute_baseline(x_train, i_train, m_train, e_train, l_train, t_train, batch = 100)
+            self.model.compute_baseline(x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t_train, batch = 100)
             self.fitted = True
             return self
         else:
             return None
             
-    def predict(self, x, i, m, horizon = None, risk = 1, batch = None):
+    def predict(self, x, ie_to, ie_since, m, horizon = None, risk = 1, batch = None):
         """
         Predict the outcome
 
         Args:
             x (List of Array or DataFrame n * [t_n * d]): List of Patient's time series
-            i (List of Array or DataFrame n * [t_n * d]): List of inter events times 
+            ie_to (List of Array or DataFrame n * [t_n * d]): List of inter events times (time to the next event)
+            ie_since (List of Array or DataFrame n * [t_n * d]): List of inter events times (time since the last event)
             m (List of Array or DataFrame n * [t_n * d]): List of mask 
 
             horizon (List of float): Survival horizon to predict
@@ -69,33 +77,33 @@ class RNNJoint():
         """
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
-        x, i, m, _, l, _ = self.preprocess(x, i, m)
-        return self.model.predict(x, i, m, l, horizon = horizon, risk = risk, batch = batch).detach().cpu().numpy()
+        x, ie_to, ie_since, m, _, l, _ = self.preprocess(x, ie_to, ie_since, m)
+        return self.model.predict(x, ie_to, ie_since, m, l, horizon = horizon, risk = risk, batch = batch).detach().cpu().numpy()
 
-    def observational_predict(self, x, i, m, batch = None):
+    def observational_predict(self, x, ie_to, ie_since, m, batch = None):
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
-        x, i, m, _, l, _ = self.preprocess(x, i, m)
-        return [out.detach().cpu().numpy() for out in self.model.observational_predict(x, i, m, l, batch = batch)]
+        x, ie_to, ie_since, m, _, l, _ = self.preprocess(x, ie_to, ie_since, m)
+        return [out.detach().cpu().numpy() for out in self.model.observational_predict(x, ie_to, ie_since, m, l, batch = batch)]
 
-    def loss(self, x, i, m, e, t, batch = None):
+    def loss(self, x, ie_to, ie_since, m, e, t, batch = None):
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
-        x, i, m, e, l, t = self.preprocess(x, i, m, e, t)
-        x, i, m, e, l, t = sort_given_t(x, i, m, e, l, t = t)
-        return self.model.loss(x, i, m, e, l, t, batch, observational = False)[0].item() # Only survival loss
+        x, ie_to, ie_since, m, e, l, t = self.preprocess(x, ie_to, ie_since, m, e, t)
+        x, ie_to, ie_since, m, e, l, t = sort_given_t(x, ie_to, ie_since, m, e, l, t = t)
+        return self.model.loss(x, ie_to, ie_since, m, e, l, t, batch, observational = False)[0].item() # Only survival loss
 
-    def loss_observational(self, x, i, m, batch = None):
+    def loss_observational(self, x, ie_to, ie_since, m, batch = None):
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
-        x, i, m, _, l, _ = self.preprocess(x, i, m)
-        return {name: i.item() for name, i in zip(['Temporal', 'Longitudinal', 'Missing'], self.model.loss(x, i, m, None, None, l, batch, survival = False, observational = True)[1]['observational'])}
+        x, ie_to, ie_since, m, _, l, _ = self.preprocess(x, ie_to, ie_since, m)
+        return {name: i.item() for name, i in zip(['Temporal', 'Longitudinal', 'Missing'], self.model.loss(x, ie_to, ie_since, m, None, None, l, batch, survival = False, observational = True)[1]['observational'])}
 
-    def feature_importance(self, x, i, m, e, t, n = 100, batch = None):
+    def feature_importance(self, x, ie_to, ie_since, m, e, t, n = 100, batch = None):
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
-        x_p, i_p, m_p, e_p, l_p, t_p = self.preprocess(x, i, m, e, t)
-        x_p, i_p, m_p, e_p, l_p, t_p = sort_given_t(x_p, i_p, m_p, e_p, l_p, t = t_p)
+        x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = self.preprocess(x, ie_to, ie_since, m, e, t)
+        x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = sort_given_t(x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t = t_p)
         global_nll = self.model.loss(x_p, i_p, m_p, e_p, l_p, t_p, batch)[1]
         if 'observational' in global_nll:
             global_nll =  {'Survival': global_nll['survival'].item(), 
@@ -114,10 +122,10 @@ class RNNJoint():
                 x_p[:, j] = np.roll(x_p[:, j], rool)
                 x_p = pd.DataFrame(x_p, index = x.index)
                 
-                x_p, i_p, m_p, e_p, l_p, t_p = self.preprocess(x, i, m, e, t)
-                x_p, i_p, m_p, e_p, l_p, t_p = sort_given_t(x_p, i_p, m_p, e_p, l_p, t = t_p)
+                x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = self.preprocess(x, ie_to, ie_since, m, e, t)
+                x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = sort_given_t(x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t = t_p)
 
-                nll = self.model.loss(x_p, i_p, m_p, e_p, l_p, t_p, batch)[1]
+                nll = self.model.loss(x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p, batch)[1]
                 performances['Survival'][j].append(nll['survival'].item())
 
                 if 'observational' in nll:
@@ -128,7 +136,7 @@ class RNNJoint():
         return {c: {j: (np.array(performances[c][j]) - global_nll[c]) / global_nll[c] for j in performances[c]} for c in performances}
           
 
-    def preprocess(self, x, i, m, e = None, t = None):
+    def preprocess(self, x, ie_to, ie_since, m, e = None, t = None):
         """
         Preprocess data
             All lists need to have the same size
@@ -140,19 +148,21 @@ class RNNJoint():
             return None, None, None, None, None, None
 
         x = pandas_to_list(x)
-        i = pandas_to_list(i)
+        ie_to = pandas_to_list(ie_to)
+        ie_since = pandas_to_list(ie_since)
         m = pandas_to_list(m)
 
         # X and T Padding
-        xres, ires, mres, l = [], [], [], [len(xi) for xi in x]
+        xres, itres, isres, mres, l = [], [], [], [], [len(xi) for xi in x]
         max_length = max(l)
-        for xi, ii, mi, li in zip(x, i, m, l):
-            # Compute time differences between successive points
+        for xi, iti, isi, mi, li in zip(x, ie_to, ie_since, m, l):
             xres.append(np.concatenate([xi, np.zeros(shape = (max_length - li, xi.shape[1]))]))
-            ires.append(np.concatenate([ii, np.zeros(shape = (max_length - li))]))
+            itres.append(np.concatenate([iti, np.zeros(shape = (max_length - li, xi.shape[1]))]))
+            isres.append(np.concatenate([isi, np.zeros(shape = (max_length - li, xi.shape[1]))]))
             mres.append(np.concatenate([mi, np.zeros(shape = (max_length - li, mi.shape[1]))]))
         x = torch.from_numpy(np.array(xres, dtype=float)).double()
-        i = torch.from_numpy(np.array(ires, dtype=float)).double()
+        ie_to = torch.from_numpy(np.array(itres, dtype=float)).double()
+        ie_since = torch.from_numpy(np.array(isres, dtype=float)).double()
         m = torch.from_numpy(np.array(mres, dtype=float)) > 0.5
         l = torch.LongTensor(l)
 
@@ -170,14 +180,14 @@ class RNNJoint():
                 t = t.cuda()
 
         if self.cuda:
-            x, i, m, l = x.cuda(), i.cuda(), m.cuda(), l.cuda()
+            x, ie_to, ie_since, m, l = x.cuda(), ie_to.cuda(), ie_since.cuda(), m.cuda(), l.cuda()
             
-        return x, i, m, e, l, t
+        return x, ie_to, ie_since, m, e, l, t
 
 def train_torch_model(model_torch, 
-    x_train, i_train, m_train, e_train, l_train, t_train,
-    x_valid, i_valid, m_valid, e_valid, l_valid, t_valid,
-    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 2, weight_decay = 0.001, full_finetune = False):
+    x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t_train,
+    x_valid, ie_to_valid, ie_since_valid, m_valid, e_valid, l_valid, t_valid,
+    epochs = 1, pretrain_ite = 1, lr = 0.0001, batch = 500, patience = 2, weight_decay = 0.001, full_finetune = False):
 
     # Initialization parameters
     weights = {}
@@ -194,9 +204,9 @@ def train_torch_model(model_torch,
     optimizer = torch.optim.Adam(model_torch.parameters(), lr = lr, weight_decay = weight_decay)
 
     # Sort batch for likelihood computation
-    x_train, i_train, m_train, e_train, l_train, t_train = sort_given_t(x_train, i_train, m_train, e_train, l_train, t = t_train)
+    x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t_train = sort_given_t(x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t = t_train)
     if x_valid is not None:
-        x_valid, i_valid, m_valid, e_valid, l_valid, t_valid = sort_given_t(x_valid, i_valid, m_valid, e_valid, l_valid, t = t_valid)
+        x_valid, ie_to_valid, ie_since_valid, m_valid, e_valid, l_valid, t_valid = sort_given_t(x_valid, ie_to_valid, ie_since_valid, m_valid, e_valid, l_valid, t = t_valid)
 
     for i in t_bar:
         if i == pretrain_ite:
@@ -218,14 +228,14 @@ def train_torch_model(model_torch,
         np.random.shuffle(batch_order)
         for j in range(nbatches):
             order = np.sort(batch_order[j*batch:(j+1)*batch]) # Need to conserve order
-            xb, ib, mb, tb, eb, lb = x_train[order], i_train[order], m_train[order],\
+            xb, itb, isb, mb, tb, eb, lb = x_train[order], ie_to_train[order], ie_since_train[order], m_train[order],\
                                      t_train[order], e_train[order], l_train[order]
 
             if xb.shape[0] == 0:
                 continue
 
             optimizer.zero_grad()
-            loss, _ = model_torch.loss(xb, ib, mb, eb, lb, tb, 
+            loss, _ = model_torch.loss(xb, itb, isb, mb, eb, lb, tb, 
                         observational = full, weights = weights)
             loss.backward()
             optimizer.step()
@@ -237,7 +247,7 @@ def train_torch_model(model_torch,
         
         model_torch.eval()
         previous_losses_2 = previous_losses.copy()
-        loss, previous_losses = model_torch.loss(x_valid, i_valid,
+        loss, previous_losses = model_torch.loss(x_valid, ie_to_valid, ie_since_valid,
                                 m_valid, e_valid, l_valid, t_valid, 
                                 batch = batch, observational = full)
         

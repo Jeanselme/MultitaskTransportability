@@ -72,33 +72,39 @@ class RNNJointTorch(BatchForward):
                                                 temporal, temporal_args, 
                                                 longitudinal, longitudinal_args, 
                                                 missing, missing_args)
+    
+    def pickle(self):
+        self.embedding.pickle()
 
-    def compute_baseline(self, x, i, m, e, l, t, batch = None):
-        hp, _ = self.embedding.forward(x, i, m, l, batch = batch)
+    def unpickle(self):
+        self.embedding.unpickle()
+
+    def compute_baseline(self, x, ie_to, ie_since, m, e, l, t, batch = None):
+        hp, _ = self.embedding.forward(x, ie_since, m, l, batch = batch)
         self.survival_model.compute_baseline(hp, e, t, batch = batch)
         return self
     
-    def loss(self, x, i, m, e, l, t, batch = None, reduction = 'mean', survival = True, observational = True, weights = {}):
+    def loss(self, x, ie_to, ie_since, m, e, l, t, batch = None, reduction = 'mean', survival = True, observational = True, weights = {}):
         """
             Compute loss model (need sorted if survival == True)
         """
-        hp, hidden = self.embedding.forward(x, i, m, l, batch = batch)
+        hp, hidden = self.embedding.forward(x, ie_since, m, l, batch = batch)
         loss, losses = 0, {}
         if survival:
             loss = losses['survival'] = self.survival_model.loss(hp, e, batch, reduction)
 
         if self.observational and observational:    
-            losses['observational'] = torch.stack(self.observational_model.loss(hidden, x[:, :, self.mixture_mask], i, m[:, :, self.mixture_mask], l, batch, reduction))
+            losses['observational'] = torch.stack(self.observational_model.loss(hidden, x[:, :, self.mixture_mask], ie_to[:, :, self.mixture_mask], m[:, :, self.mixture_mask], l, batch, reduction))
             weight_surv, weight_obs = weights.get("survival", 1), weights.get("observational", 1)
             loss = (1 - self.weight) *  (weight_surv * loss) + self.weight * (weight_obs * losses['observational']).sum()
             
         return loss, losses
 
-    def predict_batch(self, x, i, m, l, horizon, risk = 1):
-        hp, _ = self.embedding.forward_batch(x, i, m, l)
+    def predict_batch(self, x, ie_to, ie_since, m, l, horizon, risk = 1):
+        hp, _ = self.embedding.forward_batch(x, ie_since, m, l)
         return self.survival_model.predict_batch(hp, horizon = horizon, risk = risk)[0],
 
-    def observational_predict(self, x, i, m, l, batch = None):
+    def observational_predict(self, x, ie_to, ie_since, m, l, batch = None):
         assert self.observational, "Do not model observational outcome"
-        _, hidden = self.embedding.forward(x, i, m, l, batch = batch)
-        return self.observational_model.forward(hidden, i, m[:, :, self.mixture_mask], l, batch = batch)
+        _, hidden = self.embedding.forward(x, ie_since, m, l, batch = batch)
+        return self.observational_model.forward(hidden, ie_to[:, :, self.mixture_mask], m[:, :, self.mixture_mask], l, batch = batch)

@@ -45,7 +45,7 @@ class Mixture(BatchForward):
         else:
             self.alphas = torch.ones_like
 
-        self.temporal = nn.ModuleList([Temporal.create(temporal, inputdim, 1, temporal_args) for _ in range(k)])
+        self.temporal = nn.ModuleList([Temporal.create(temporal, inputdim, outputdim, temporal_args) for _ in range(k)])
         self.longitudinal = nn.ModuleList([Longitudinal.create(longitudinal, inputdim, outputdim, longitudinal_args) for _ in range(k)])
         self.missing = nn.ModuleList([Missing.create(missing, inputdim, outputdim, missing_args) for _ in range(k)])
 
@@ -69,7 +69,7 @@ class Mixture(BatchForward):
         for j, (temp, long, miss) in enumerate(zip(self.temporal, self.longitudinal, self.missing)):
             # Elbo loss (alpha could be computed exactly)
             alphas_repeat = alphas[:, :, j].unsqueeze(2).repeat(1, 1, x.size(2))
-            loss_temp += temp.loss(alphas[:, :, j], h, i, m, l, batch, reduction) if temp is not None else 0
+            loss_temp += temp.loss(alphas_repeat, h, i, m, l, batch, reduction) if temp is not None else 0
             loss_long += long.loss(alphas_repeat, h, x, i, m, l, batch, reduction) if long is not None else 0
             loss_miss += miss.loss(alphas_repeat, h, i, m, l, batch, reduction) if miss is not None else 0
 

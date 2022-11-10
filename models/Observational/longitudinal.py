@@ -21,6 +21,7 @@ class Longitudinal():
 class Neural(BatchForward):
     """
         Neural with Gaussian error
+        Predict the change in value not the value iteself
     """
 
     def __init__(self, inputdim, outputdim, longitudinal_args = {}):
@@ -40,14 +41,22 @@ class Neural(BatchForward):
         self.softplus = nn.Softplus()
 
     def forward_batch(self, h, i, m, l):
-        tau = i[:, 1:].unsqueeze(-1)
+        tau = i[:, 1:, :]
         h_time = h[:, :-1, :]  # Last point not observed
-        concat = torch.cat((h_time, tau), 2)
 
-        mean_var = self.mean_var(concat)
-        mean, var = mean_var[:,:,:self.outputdim], self.softplus(mean_var[:,:,self.outputdim:])
+        mean, var = [], []
+        for dim in range(self.outputdim):
+            concat = torch.cat((h_time, tau[:,:, dim].unsqueeze(-1)), 2)
+            mean_var_dim = self.mean_var(concat)
+            mean_dim, var_dim = mean_var_dim[:,:,dim], self.softplus(mean_var_dim[:,:,self.outputdim + dim])
+            mean.append(mean_dim.unsqueeze(-1))
+            var.append(var_dim.unsqueeze(-1))
 
-        concat = torch.cat((h_time, torch.zeros_like(tau)), 2)
+        mean = torch.cat(mean, axis = -1)
+        var = torch.cat(var, axis = -1)
+
+        # Remove mean 0 as it predicts change in value
+        concat = torch.cat((h_time, torch.zeros_like(tau[:,:, dim]).unsqueeze(-1)), 2)
         mean_0 = self.mean_var(concat)[:,:,:self.outputdim]
 
         return mean - mean_0, var
@@ -55,7 +64,7 @@ class Neural(BatchForward):
     def loss(self, alpha, h, x, i, m, l, batch = None, reduction = 'mean'):
         mean, variance = self.forward(h, i, m, l, batch = batch)
         submask = m[:, 1:, :] # First value not even predicted for each time series
-        diff = x[:, 1:, :] - x[:, :-1, :]
+        diff = x[:, 1:, :] - x[:, :-1, :] # Compute change in value
         loss = (alpha[submask] * nn.GaussianNLLLoss(reduction = "none", full = True)(mean[submask], diff[submask], variance[submask])).sum()
 
         if reduction == 'mean':
@@ -82,12 +91,19 @@ class Gaussian(Neural):
         self.latent = nn.Parameter(torch.randn(1, 1, representation))
 
     def forward_batch(self, h, i, m, l):
-        tau = i[:, 1:].unsqueeze(-1)
-        centroid = torch.cat((self.latent.repeat((len(h), tau.shape[1], 1)), tau), 2)
-        mean_var = self.mean_var(centroid)
-        mean, var = mean_var[:,:,:self.outputdim], self.softplus(mean_var[:,:,self.outputdim:])
+        tau = i[:, 1:, :]
 
-        centroid = torch.cat((self.latent.repeat((len(h), tau.shape[1], 1)), torch.zeros_like(tau)), 2)
+        mean, var = [], []
+        for dim in range(self.outputdim):
+            centroid = torch.cat((self.latent.repeat((len(h), tau.shape[1], 1)), tau[:, :, dim].unsqueeze(-1)), 2)
+            mean_var_dim = self.mean_var(centroid)
+            mean_dim, var_dim = mean_var_dim[:,:,dim], self.softplus(mean_var_dim[:,:,self.outputdim + dim])
+            mean.append(mean_dim.unsqueeze(-1))
+            var.append(var_dim.unsqueeze(-1))
+
+        mean = torch.cat(mean, axis = -1)
+        var = torch.cat(var, axis = -1)
+
+        centroid = torch.cat((self.latent.repeat((len(h), tau.shape[1], 1)), torch.zeros_like(tau[:, :, dim].unsqueeze(-1))), 2)
         mean_0 = self.mean_var(centroid)[:,:,:self.outputdim]
-
         return mean - mean_0, var

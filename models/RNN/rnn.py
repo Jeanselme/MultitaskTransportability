@@ -61,6 +61,14 @@ class RNN(BatchForward):
 
         self.cuda = cuda
 
+    def pickle(self):
+        if self.typ == 'ODE':
+            self.embedding.pickle()
+
+    def unpickle(self):
+        if self.typ == 'ODE':
+            self.embedding.unpickle()
+
 
     def forward_batch(self, x, t, m, l):
         """
