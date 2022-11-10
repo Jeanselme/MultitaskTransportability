@@ -103,31 +103,31 @@ def process(data, labels):
 
 layers = [[], [50], [50, 50], [50, 50, 50]]
 
-# # LOCF
-# last = labs.groupby('Patient').ffill().groupby('Patient').last().fillna(labs.groupby('Patient').mean().mean()) 
+# LOCF
+last = labs.groupby('Patient').ffill().groupby('Patient').last().fillna(labs.groupby('Patient').mean().mean()) 
 
-# se = ShiftExperiment.create(model = 'deepsurv', 
-#                     hyper_grid = {"survival_args": [{"layers": l} for l in layers],
-#                         "lr" : [1e-3, 1e-4],
-#                         "batch": [100, 250]
-#                     }, 
-#                     path = results + 'deepsurv_last',
-#                     times = [0.5, 1, 1.5, 2]) 
+se = ShiftExperiment.create(model = 'deepsurv', 
+                    hyper_grid = {"survival_args": [{"layers": l} for l in layers],
+                        "lr" : [1e-3, 1e-4],
+                        "batch": [100, 250]
+                    }, 
+                    path = results + 'deepsurv_last',
+                    times = [0.5, 1, 1.5, 2]) 
 
-# se.train(last, outcomes.Time - 12 * np.pi, ~outcomes.Censored.astype(bool), training)
+se.train(last, outcomes.Time - 12 * np.pi, ~outcomes.Censored.astype(bool), training)
 
-# # Count
-# count = (~labs.isna()).groupby('Patient').sum() # Compute counts
+# Count
+count = (~labs.isna()).groupby('Patient').sum() # Compute counts
 
-# se = ShiftExperiment.create(model = 'deepsurv', 
-#                     hyper_grid = {"survival_args": [{"layers": l} for l in layers],
-#                         "lr" : [1e-3, 1e-4],
-#                         "batch": [100, 250],
-#                     }, 
-#                     path = results + 'deepsurv_count',
-#                     times = [0.5, 1, 1.5, 2])
+se = ShiftExperiment.create(model = 'deepsurv', 
+                    hyper_grid = {"survival_args": [{"layers": l} for l in layers],
+                        "lr" : [1e-3, 1e-4],
+                        "batch": [100, 250],
+                    }, 
+                    path = results + 'deepsurv_count',
+                    times = [0.5, 1, 1.5, 2])
 
-# se.train(pd.concat([last, count], axis = 1), outcomes.Time - 12 * np.pi, ~outcomes.Censored.astype(bool), training)
+se.train(pd.concat([last, count], axis = 1), outcomes.Time - 12 * np.pi, ~outcomes.Censored.astype(bool), training)
 
 hyper_grid = {
         "layers": [1, 2, 3],
