@@ -24,6 +24,8 @@ class DeepSurv():
 
     def pickle(self):
         pass
+    def unpickle(self):
+        pass
 
     def loss(self, x, ie_to, ie_since, m, e, t, batch = None):
         if not self.fitted:
