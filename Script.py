@@ -409,7 +409,7 @@ hyper_grid_joint.update(
     }
 )
 # Joint with value + time only
-labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
+labs_selection = pd.concat([labs.copy(), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
 cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
 
 mask_mixture = np.full(len(cov.columns), False)
