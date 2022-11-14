@@ -24,7 +24,7 @@ outcomes = pd.read_csv(path + 'labels.csv')
 outcomes = pd.concat([outcomes.set_index(dataset + '_' + outcomes.Patient.astype(str)) for dataset in datasets])
 
 # Assign all data in training and testing
-training = pd.Series((outcomes.index.get_level_values('Patient').str.contains(args.dataset)) & (outcomes.Patient < 750), index = outcomes.index)
+training = pd.Series(outcomes.index.get_level_values('Patient').str.contains(args.dataset), index = outcomes.index)
 results = 'results_synthetic/{}/'.format(args.dataset)
 
 print('Total patients: {}'.format(len(training)))
