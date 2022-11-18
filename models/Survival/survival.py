@@ -47,7 +47,7 @@ class DeepSurv(BatchForward):
         outcome = torch.cat(outcome, -1)
         return outcome,
 
-    def loss(self, h, e, batch = None, reduction = 'mean'):
+    def loss(self, h, e, t, batch = None, reduction = 'mean'):
         loss, e = 0, e.squeeze()
         predictions, = self.forward(h, batch = batch)
 

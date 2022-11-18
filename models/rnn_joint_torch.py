@@ -91,7 +91,7 @@ class RNNJointTorch(BatchForward):
         hp, hidden = self.embedding.forward(x, ie_since, m, l, batch = batch)
         loss, losses = 0, {}
         if survival:
-            loss = losses['survival'] = self.survival_model.loss(hp, e, batch, reduction)
+            loss = losses['survival'] = self.survival_model.loss(hp, e, t, batch, reduction)
 
         if self.observational and observational:    
             losses['observational'] = torch.stack(self.observational_model.loss(hidden, x[:, :, self.mixture_mask], ie_to[:, :, self.mixture_mask], m[:, :, self.mixture_mask], l, batch, reduction))

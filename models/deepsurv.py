@@ -32,7 +32,7 @@ class DeepSurv():
             raise Exception("The model has not been fitted yet.")
         x, e, t = self.preprocess(x, e, t)
         x, e, t = sort_given_t(x, e, t = t)
-        return self.model.loss(x, e, batch = batch).item() # Only survival loss
+        return self.model.loss(x, e, t, batch = batch).item() # Only survival loss
 
     def predict(self, x, ie_to, ie_since, m, horizon = None, risk = 1, batch = None):
         """
@@ -55,8 +55,8 @@ class DeepSurv():
         x, _, _= self.preprocess(x)
         return self.model.predict(x, horizon = horizon, risk  = risk, batch = batch).detach().cpu().numpy()
 
-    def fit(self, x_train, e_train, t_train,
-             x_valid = None, e_valid = None, t_valid = None, **params):
+    def fit(self, x_train, ie_to_train, ie_since_train, m_train, e_train, t_train,
+             x_valid = None, ie_to_valid = None, ie_since_valid = None, m_valid = None, e_valid = None, t_valid = None, **params):
         """
         Fit the model
 
@@ -119,7 +119,7 @@ class DeepSurv():
 def train_torch_model(model_torch, 
     x_train, e_train, t_train,
     x_valid, e_valid, t_valid,
-    epochs = 1, pretrain_ite = 1, lr = 0.0001, batch = 500, patience = 2, weight_decay = 0.001):
+    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 2, weight_decay = 0.001):
 
     # Initialization parameters
     t_bar = tqdm(range(epochs + pretrain_ite))
@@ -142,13 +142,13 @@ def train_torch_model(model_torch,
         np.random.shuffle(batch_order)
         for j in range(nbatches):
             order = np.sort(batch_order[j*batch:(j+1)*batch]) # Need to conserve order
-            xb, eb = x_train[order], e_train[order]
+            xb, eb, tb = x_train[order], e_train[order], t_train[order]
 
             if xb.shape[0] == 0:
                 continue
 
             optimizer.zero_grad()
-            loss = model_torch.loss(xb, eb)
+            loss = model_torch.loss(xb, eb, tb)
             loss.backward()
             optimizer.step()
         
@@ -158,7 +158,7 @@ def train_torch_model(model_torch,
             continue
         
         model_torch.eval()
-        loss = model_torch.loss(x_valid, e_valid, batch = batch).item()
+        loss = model_torch.loss(x_valid, e_valid, t_valid, batch = batch).item()
         
         t_bar.set_description("Loss survival: {:.3f}".format(loss))
         t_bar.set_postfix({'Minimal loss observed': best_loss})

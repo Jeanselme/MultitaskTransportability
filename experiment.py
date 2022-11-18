@@ -1,7 +1,10 @@
 from sklearn.model_selection import ParameterSampler, train_test_split
+from sksurv.metrics import concordance_index_ipcw, brier_score, cumulative_dynamic_auc
+
 from sklearn.preprocessing import StandardScaler
 from models.rnn_joint import RNNJoint
 from models.deepsurv import DeepSurv
+
 import pandas as pd
 import numpy as np
 import pickle
@@ -9,6 +12,108 @@ import torch
 import copy
 import os
 import io
+
+def time_since_last(series):
+    # Keep the time of the last observation
+    times = series.dropna().index.get_level_values('Time').to_series()
+
+    # Create a series with this time between two observation
+    times_last = pd.Series(np.nan, index = series.index.get_level_values('Time'))
+    times_last.loc[times] = times.values
+    times_last = times_last.ffill()
+
+    # Do the difference between index and time to the previous
+    times_last = series.index.get_level_values('Time').to_series() - times_last
+
+    # Replace time of event for time since last
+    times_last.loc[times] = series.dropna().index.get_level_values('Time').to_series().diff().loc[times]
+    return times_last
+
+def time_to_next(series):
+    # Keep the time of the last observation
+    times = series.dropna().index.get_level_values('Time').to_series()
+
+    # Create a series with this time between two observation
+    times_next = pd.Series(np.nan, index = series.index.get_level_values('Time'))
+    times_next.loc[times] = times.values
+    times_next = times_next.bfill()
+
+    # Do the difference between index and time to the previous
+    times_next = times_next - series.index.get_level_values('Time').to_series()
+
+    # Replace time of event for time since last
+    times_next.loc[times] = -series.dropna().index.get_level_values('Time').to_series().diff(periods = -1).loc[times]
+    return times_next
+
+def compute(data, f = time_since_last):
+    """
+        Returns the table of times since last observations
+    """
+    times = data.groupby('Patient').apply(
+        lambda x: pd.concat({c: f(x[c]) for c in x.columns}, axis = 1).sort_index()
+        )
+    return times
+
+def process(data, labels):
+    """
+        Extracts mask and interevents
+        Preprocesses the time of event and event
+    """
+    cov = data.copy().astype(float)
+    cov = cov.groupby('Patient').ffill() 
+    
+    patient_mean = data.astype(float).groupby('Patient').mean()
+    cov.fillna(patient_mean, inplace=True) 
+
+    pop_mean = patient_mean.mean()
+    cov.fillna(pop_mean, inplace=True) 
+
+    # Compute time to the next event (only when observed)
+    ie_to = compute(data, time_to_next).fillna(-10)
+    ie_since = compute(data, time_since_last).fillna(-10)
+
+    mask = ~data.isna() 
+    time_event = pd.DataFrame((labels.Time.loc[data.index.get_level_values(0)] - data.index.get_level_values(1)).values, index = data.index)
+
+    return cov, ie_to, ie_since, mask, time_event, ~labels.Censored.astype(bool)
+    
+def evaluate(e_train, t_train, e_test, t_test, risk, iterations = 100, horizons = []):
+    et_train = np.array([(e_train[i], t_train[i]) if t_train[i] != max(t_train) else (e_train[i], max(t_test)) for i in range(len(e_train))],
+                     dtype = [('e', bool), ('t', float)])
+    
+    cis, rocs, brs = {t: [] for t in horizons}, {t: [] for t in horizons}, {t: [] for t in horizons}
+    total = iterations
+    for _ in range(iterations):
+        bootstrap = np.random.choice(np.arange(len(risk)), size = len(risk), replace = True) 
+        bootstrap = [j for j in bootstrap]
+        et_test = np.array([(e_test[j], t_test[j]) for j in bootstrap],
+                            dtype = [('e', bool), ('t', float)])
+
+        risk_iteration = risk[bootstrap]
+        survival_iteration = 1 - risk_iteration
+        try:
+            b = brier_score(et_train, et_test, survival_iteration, horizons)[1]
+            # Concordance and ROC for each time
+            for j, time in enumerate(horizons):
+                brs[time].append(b[j])
+                cis[time].append(concordance_index_ipcw(et_train, et_test, risk_iteration[:, j], time)[0])
+                rocs[time].append(cumulative_dynamic_auc(et_train, et_test, risk_iteration[:, j], time)[0][0])
+        except Exception as e:
+            total -= 1
+            continue
+    print("Effective iterations: ", total)
+    result = {}
+    for horizon in horizons:
+        result.update({
+          ("TD Concordance Index", 'Mean', horizon): np.mean(cis[horizon]),
+          ("TD Concordance Index", 'Std', horizon): np.std(cis[horizon]), 
+          ("Brier Score", 'Mean', horizon): np.mean(brs[horizon]),
+          ("Brier Score", 'Std', horizon): np.std(brs[horizon]),
+          ("ROC AUC", 'Mean', horizon): np.mean(rocs[horizon]),
+          ("ROC AUC", 'Std', horizon): np.std(rocs[horizon]),
+        })
+
+    return pd.Series({r: result[r] for r in sorted(result)}), cis
 
 class CPU_Unpickler(pickle.Unpickler):
     """
@@ -155,21 +260,25 @@ class ShiftExperiment():
         # Train on subset one domain
         ## Grid search best params
         for i, hyper in enumerate(self.hyper_grid):
-            if i < self.iter:
-                # When object is reloaded - Avoid to recompute same parameters
-                continue
-            model = self._fit(train_cov, train_iet, train_ies, train_mask, train_event, train_time, hyper, 
-                                val_cov, val_iet, val_ies, val_mask, val_event, val_time)
+            try:
+                if i < self.iter:
+                    # When object is reloaded - Avoid to recompute same parameters
+                    continue
+                model = self._fit(train_cov, train_iet, train_ies, train_mask, train_event, train_time, hyper, 
+                                    val_cov, val_iet, val_ies, val_mask, val_event, val_time)
 
-            if model is not None:
-                nll = self._nll(model, dev_cov, dev_iet, dev_ies, dev_mask, dev_event, dev_time)
-                if nll < self.best_nll:
-                    self.best_hyper = hyper
-                    self.best_model = model
-                    self.best_nll = nll
+                if model is not None:
+                    nll = self._nll(model, dev_cov, dev_iet, dev_ies, dev_mask, dev_event, dev_time)
+                    if nll < self.best_nll:
+                        self.best_hyper = hyper
+                        self.best_model = model
+                        self.best_nll = nll
 
-            self.iter += 1
-            ShiftExperiment.save(self)
+                self.iter += 1
+                ShiftExperiment.save(self)
+            except KeyboardInterrupt as e:
+                print('Interruption -> Return best results')
+                break
 
         return self.save_results(self.predict(covariates, ie_to, ie_since, mask, training.index), annotated_training)
 
@@ -208,8 +317,8 @@ class ShiftExperiment():
                              val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time, lr = lr, batch = batch, full_finetune = full)
         elif self.model == "deepsurv":
             model = DeepSurv(inputdim, outputdim, **hyperparameter)
-            return model.fit(covariates, event, time,
-                             val_cov, val_event, val_time, lr = lr, batch = batch)
+            return model.fit(covariates, ie_to, ie_since, mask, event, time,
+                             val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time, lr = lr, batch = batch)
         else:
              raise ValueError('Model {} unknown'.format(self.model))
         

@@ -104,7 +104,7 @@ class RNNJoint():
             raise Exception("The model has not been fitted yet.")
         x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = self.preprocess(x, ie_to, ie_since, m, e, t)
         x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = sort_given_t(x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t = t_p)
-        global_nll = self.model.loss(x_p, i_p, m_p, e_p, l_p, t_p, batch)[1]
+        global_nll = self.model.loss(x_p, ie_to, ie_since, m_p, e_p, l_p, t_p, batch)[1]
         if 'observational' in global_nll:
             global_nll =  {'Survival': global_nll['survival'].item(), 
                            'Temporal': global_nll['observational'][0].item(), 
