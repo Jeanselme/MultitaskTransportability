@@ -1,7 +1,7 @@
 from sklearn.model_selection import ParameterSampler, train_test_split
 from sksurv.metrics import concordance_index_ipcw, brier_score, cumulative_dynamic_auc
 
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from models.rnn_joint import RNNJoint
 from models.deepsurv import DeepSurv
 
@@ -76,7 +76,40 @@ def process(data, labels):
     time_event = pd.DataFrame((labels.Time.loc[data.index.get_level_values(0)] - data.index.get_level_values(1)).values, index = data.index)
 
     return cov, ie_to, ie_since, mask, time_event, ~labels.Censored.astype(bool)
-    
+
+def normalizeMinMax(data, normalizer = None):
+    """
+        Apply a min max standardization for time data
+    """
+    if isinstance(data, list):
+        data = np.array(data).reshape(-1, 1)
+
+    mask = data >= 0
+    if normalizer is None:
+        normalizer = MinMaxScaler().fit(data[mask])
+
+    normalized_data = data.copy()
+    try:
+        normalized_data[mask] = normalizer.transform(normalized_data[mask])
+    except:
+        normalized_data[mask] = normalizer.transform(normalized_data)[mask]
+
+    return normalized_data, normalizer
+
+def select(df, oversample):
+    """
+        Allows to select from a multi index with over sampling
+        Ensure that the each resampled patients will have a different index
+    """
+    if df.index.nlevels > 1:
+        results = {}
+        for i, patient in enumerate(oversample):
+            patient_df = df.loc[patient]
+            results[i] = patient_df
+        return pd.concat(results)
+    else:
+        return df.loc[oversample].reset_index(drop=True)
+
 def evaluate(e_train, t_train, e_test, t_test, risk, iterations = 100, horizons = []):
     et_train = np.array([(e_train[i], t_train[i]) if t_train[i] != max(t_train) else (e_train[i], max(t_test)) for i in range(len(e_train))],
                      dtype = [('e', bool), ('t', float)])
@@ -231,6 +264,9 @@ class ShiftExperiment():
         # Normalize data using only training data
         if self.normalization:
             self.normalizer = StandardScaler().fit(covariates.loc[training_index])
+            time, self.normalizer_t = normalizeMinMax(time)
+            ie_to, self.normalizer_ieto = normalizeMinMax(ie_to)
+            ie_since, self.normalizer_iesi = normalizeMinMax(ie_since)
             covariates = pd.DataFrame(self.normalizer.transform(covariates), index = covariates.index)
 
         # Oversample training data
@@ -285,6 +321,7 @@ class ShiftExperiment():
     def predict(self, covariates, ie_to, ie_since, mask, index = None):
         """
             Predicts the risk for each given covariates
+            Data MUST be normalized in the same way
 
             Args:
                 covariates (Dataframe): Data on which to train
@@ -296,7 +333,7 @@ class ShiftExperiment():
         """
         if self.best_model is None:
             raise ValueError('Model not trained - Call .fit')
-        return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = self.times, risk = 1, batch = 50), index = index, columns = self.times)
+        return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = normalizeMinMax(self.times, self.normalizer_t)[0].flatten().tolist(), risk = 1, batch = 50), index = index, columns = self.times)
             
     def _fit(self, covariates, ie_to, ie_since, mask, event, time, hyperparameter, val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time):
         """
@@ -327,17 +364,3 @@ class ShiftExperiment():
             Computes the negative loglikelihood of the model on the given data
         """
         return model.loss(covariates, ie_to, ie_since, mask, event, time)
-
-def select(df, oversample):
-    """
-        Allows to select from a multi index with over sampling
-        Ensure that the each resampled patients will have a different index
-    """
-    if df.index.nlevels > 1:
-        results = {}
-        for i, patient in enumerate(oversample):
-            patient_df = df.loc[patient]
-            results[i] = patient_df
-        return pd.concat(results)
-    else:
-        return df.loc[oversample].reset_index(drop=True)

@@ -53,19 +53,23 @@ class Mixture(BatchForward):
         """
             Forward through the different networks
         """
-        temp_res = long_res = miss_res = torch.zeros(1, device = h.get_device() if h.is_cuda else 'cpu')
-        alphas = self.alphas(h[:, :-1])
+        temp_res = torch.zeros(1, device = h.get_device() if h.is_cuda else 'cpu')
+        long_res = torch.zeros(1, device = h.get_device() if h.is_cuda else 'cpu')
+        miss_res = torch.zeros(1, device = h.get_device() if h.is_cuda else 'cpu')
+        alphas = self.alphas(h[:, :-1, :])
         for j, (temp, long, miss) in enumerate(zip(self.temporal, self.longitudinal, self.missing)):
             alphas_repeat = alphas[:, :, j].unsqueeze(2).repeat(1, 1, self.outputdim)
-            temp_res += (alphas[:, :, j] * temp.forward_batch(h, i, m, l)[0]) if temp is not None else 0
+            temp_res += (alphas_repeat * temp.forward_batch(h, i, m, l)[0]) if temp is not None else 0
             long_res += (alphas_repeat * long.forward_batch(h, i, m, l)[0]) if long is not None else 0
             miss_res += (alphas_repeat * miss.forward_batch(h, i, m, l)[0]) if miss is not None else 0
 
         return temp_res, long_res, miss_res, alphas
 
     def loss(self, h, x, i, m, l, batch = None, reduction = 'mean'):
-        loss_temp = loss_long = loss_miss = torch.zeros(1, device = x.get_device() if x.is_cuda else 'cpu')
-        alphas = self.alphas(h[:, :-1])
+        loss_temp = torch.zeros(1, device = x.get_device() if x.is_cuda else 'cpu')
+        loss_long = torch.zeros(1, device = x.get_device() if x.is_cuda else 'cpu')
+        loss_miss = torch.zeros(1, device = x.get_device() if x.is_cuda else 'cpu')
+        alphas = self.alphas(h[:, :-1, :])
         for j, (temp, long, miss) in enumerate(zip(self.temporal, self.longitudinal, self.missing)):
             # Elbo loss (alpha could be computed exactly)
             alphas_repeat = alphas[:, :, j].unsqueeze(2).repeat(1, 1, x.size(2))

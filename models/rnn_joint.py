@@ -202,7 +202,6 @@ def train_torch_model(model_torch,
     previous_losses, previous_losses_2 = {}, {} # Observational weighting (different losses are weighted differently)
     
     optimizer = torch.optim.Adam(model_torch.parameters(), lr = lr, weight_decay = weight_decay)
-
     # Sort batch for likelihood computation
     x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t_train = sort_given_t(x_train, ie_to_train, ie_since_train, m_train, e_train, l_train, t = t_train)
     if x_valid is not None:
@@ -250,6 +249,7 @@ def train_torch_model(model_torch,
         loss, previous_losses = model_torch.loss(x_valid, ie_to_valid, ie_since_valid,
                                 m_valid, e_valid, l_valid, t_valid, 
                                 batch = batch, observational = full)
+        #print(previous_losses)
         
         if full:
             t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), previous_losses['survival'].item()))
