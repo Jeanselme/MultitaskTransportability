@@ -12,8 +12,6 @@ class Longitudinal():
             return None
         elif longitudinal == 'neural':
             return Neural(inputdim, outputdim, longitudinal_args)
-        elif longitudinal == 'gaussian':
-            return Gaussian(inputdim, outputdim, longitudinal_args)
         else:
             raise NotImplementedError()
 
