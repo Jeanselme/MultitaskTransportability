@@ -77,7 +77,9 @@ def compute_dwa(previous, previous_2, T = 2):
     if 'observational' not in previous_2 or 'observational' not in previous:
         return {}
     else:
-        weights = nn.Softmax(0)((previous['observational'].detach() / (T*previous_2['observational'].detach())).abs())
+        weights = (previous['observational'].detach() / (T*previous_2['observational'].detach())).abs() # avoid problem if loss is negative
+        weights = torch.nan_to_num(weights) # Null values remove
+        weights = nn.Softmax(0)(weights)
         return {'observational': weights}
 
 class PositiveLinear(nn.Module):
