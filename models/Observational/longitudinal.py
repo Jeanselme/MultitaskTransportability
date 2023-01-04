@@ -40,23 +40,25 @@ class Neural(BatchForward):
 
     def forward_batch(self, h, i, m, l):
         # Predict next step observation (shorten time)
-        concat = torch.cat((h[:, :-1, :], i[:, :-1, :].abs().min(dim = 2)[0].unsqueeze(-1)), 2) # Note that should always be positive as there is one observation at least
+        concat = torch.cat((h, i.abs().min(dim = 2)[0].unsqueeze(-1)), 2) # Note that should always be positive as there is one observation at least
         mean_var = self.mean_var(concat)
         mean, var = mean_var[:,:,:self.outputdim], self.softplus(mean_var[:,:,self.outputdim:])
 
         # Remove mean 0 as it predicts change in value
-        concat = torch.cat((h[:, :-1, :], torch.zeros_like(i[:, :-1, :].min(dim = 2)[0].unsqueeze(-1))), 2)
+        concat = torch.cat((h, torch.zeros_like(i.min(dim = 2)[0].unsqueeze(-1))), 2)
         mean_0 = self.mean_var(concat)[:,:,:self.outputdim]
 
         return mean - mean_0, var
 
     def loss(self, alpha, h, x, i, m, l, batch = None, reduction = 'mean'):
-        mean, variance = self.forward(h, i, m, l, batch = batch)
+        mean, variance = self.forward(h[:, :-1, :], i[:, :-1, :], m, l, batch = batch)
         submask = m[:, 1:, :] 
         diff = x[:, 1:, :] - x[:, :-1, :] # Compute change in value
-        loss = (alpha[submask] * nn.GaussianNLLLoss(reduction = "none", full = True)(mean[submask], diff[submask], variance[submask])).sum()
+        loss = (alpha * nn.GaussianNLLLoss(reduction = "none", full = True)(mean, diff, variance))
 
         if reduction == 'mean':
-            loss /= submask.sum()
+            loss = loss[submask].sum() / submask.sum()
+        elif reduction == 'likelihood':
+            loss = torch.sum(loss * submask, dim = 1) / submask.sum(dim = 1)
 
         return loss

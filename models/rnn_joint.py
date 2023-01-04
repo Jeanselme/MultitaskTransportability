@@ -94,17 +94,29 @@ class RNNJoint():
         return self.model.loss(x, ie_to, ie_since, m, e, l, t, batch, observational = False)[0].item() # Only survival loss
 
     def loss_observational(self, x, ie_to, ie_since, m, batch = None):
+        """
+            Compute the average negative log likelihood
+        """
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
         x, ie_to, ie_since, m, _, l, _ = self.preprocess(x, ie_to, ie_since, m)
-        return {name: i.item() for name, i in zip(['Temporal', 'Longitudinal', 'Missing'], self.model.loss(x, ie_to, ie_since, m, None, None, l, batch, survival = False, observational = True)[1]['observational'])}
+        return {name: i.item() for name, i in zip(['Temporal', 'Longitudinal', 'Missing'], self.model.loss(x, ie_to, ie_since, m, _, l, _, batch, survival = False, observational = True)[1]['observational'])}
+    
+    def likelihood_observation_predict(self, x, ie_to, ie_since, m, batch = None):
+        """
+            Computes the likelihood of the time series (each dimension independently)
+        """
+        if not self.fitted:
+            raise Exception("The model has not been fitted yet.")
+        x, ie_to, ie_since, m, _, l, _ = self.preprocess(x, ie_to, ie_since, m)
+        return {name: (- i.detach()).exp().cpu().numpy() for name, i in zip(['Temporal', 'Longitudinal', 'Missing'], self.model.loss(x, ie_to, ie_since, m, _, l, _, batch, survival = False, observational = True, reduction = 'likelihood')[1]['observational'])}
 
     def feature_importance(self, x, ie_to, ie_since, m, e, t, n = 100, batch = None):
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
         x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = self.preprocess(x, ie_to, ie_since, m, e, t)
         x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p = sort_given_t(x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t = t_p)
-        global_nll = self.model.loss(x_p, ie_to, ie_since, m_p, e_p, l_p, t_p, batch)[1]
+        global_nll = self.model.loss(x_p, ie_to_p, ie_since_p, m_p, e_p, l_p, t_p, batch)[1]
         if 'observational' in global_nll:
             global_nll =  {'Survival': global_nll['survival'].item(), 
                            'Temporal': global_nll['observational'][0].item(), 
@@ -249,7 +261,6 @@ def train_torch_model(model_torch,
         loss, previous_losses = model_torch.loss(x_valid, ie_to_valid, ie_since_valid,
                                 m_valid, e_valid, l_valid, t_valid, 
                                 batch = batch, observational = full)
-        #print(previous_losses)
         
         if full:
             t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), previous_losses['survival'].item()))

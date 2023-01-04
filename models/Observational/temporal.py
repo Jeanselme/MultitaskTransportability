@@ -38,8 +38,8 @@ class Point(BatchForward):
 
     def forward_batch(self, h, i, m, l):
         # Flatten the temporal and patient dimensions -> Keep number of covariates
-        tau = torch.flatten(i[:, :-1, :].clone().detach().requires_grad_(True), 0, 1)
-        hidden_tau = torch.flatten(h[:, :-1, :].clone().detach().requires_grad_(True), 0, 1)
+        tau = torch.flatten(i.clone().detach().requires_grad_(True), 0, 1)
+        hidden_tau = torch.flatten(h.clone().detach().requires_grad_(True), 0, 1)
         
         cumulative = []
         # Need to iterate to avoid that the time of the other prediciton impacts the predictions
@@ -53,19 +53,20 @@ class Point(BatchForward):
         if h.is_cuda:
             gradient = gradient.cuda()
 
-        return torch.exp(- cumulative).reshape([h.shape[0], h.shape[1] - 1, self.outputdim]), \
-            gradient.reshape([h.shape[0], h.shape[1] - 1, self.outputdim]), \
-            cumulative.reshape([h.shape[0], h.shape[1] - 1, self.outputdim])
+        return torch.exp(- cumulative).reshape([h.shape[0], h.shape[1], self.outputdim]), \
+            gradient.reshape([h.shape[0], h.shape[1], self.outputdim]), \
+            cumulative.reshape([h.shape[0], h.shape[1], self.outputdim])
 
     def loss(self, alpha, h, i, m, l, batch = None, reduction = 'mean'):
-        _, gradient, cumulative = self.forward(h, i, m, l, batch = batch)
+        _, gradient, cumulative = self.forward(h[:, :-1, :], i[:, :-1, :], m, l, batch = batch)
         mask = (i[:, :-1, :] >= 0) # Predict at all time when will be observed next 
-        loss = - torch.sum((alpha * (torch.log(gradient + 1e-8) - cumulative))[mask])
+        loss = - (alpha * (torch.log(gradient + 1e-8) - cumulative))
 
         # Compute difference prediction and real time
-
         if reduction == 'mean':
-            loss /= mask.sum()
+            loss = torch.sum(loss[mask]) / mask.sum()
+        elif reduction == 'likelihood':
+            loss = torch.sum(loss * mask, dim = 1) / mask.sum(dim = 1)
 
         return loss
         

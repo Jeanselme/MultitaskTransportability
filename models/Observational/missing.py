@@ -38,16 +38,18 @@ class Neural(BatchForward):
 
     def forward_batch(self, h, i, m, l):
         # Predict next step observation (shorten time)
-        concat = torch.cat((h[:, :-1, :], i[:, :-1, :].abs().min(dim = 2)[0].unsqueeze(-1)), 2)
+        concat = torch.cat((h, i.abs().min(dim = 2)[0].unsqueeze(-1)), 2)
         missing = self.missing(concat)
         return missing,
 
     def loss(self, alpha, h, i, m, l, batch = None, reduction = 'mean'):
-        predictions, = self.forward(h, i, m, l, batch = batch)
+        predictions, = self.forward(h[:, :-1, :], i[:, :-1, :], m, l, batch = batch)
         # Compare what is predicted for the next step to what is observed next
-        loss = (alpha.flatten() * nn.BCELoss(reduction = "none")(predictions.flatten(), m[:, 1:, :].flatten().double())).sum()
+        loss = (alpha * nn.BCELoss(reduction = "none")(predictions, m[:, 1:, :].double()))
 
         if reduction == 'mean':
-            loss /= m[:, 1:, :].sum()
+            loss = loss.sum() / (l - 1).sum()
+        elif reduction == 'likelihood':
+            loss = torch.sum(loss, dim = 1) / (l - 1).unsqueeze(1).repeat(1, predictions.shape[2])
 
         return loss
