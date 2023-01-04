@@ -216,9 +216,12 @@ class ShiftExperiment():
     def save(obj):
         with open(obj.path + '.pickle', 'wb') as output:
             try:
-                obj.best_model.pickle()
-                pickle.dump(obj, output)
-                obj.best_model.unpickle()
+                if obj.best_model is None:
+                    pickle.dump(obj, output)
+                else:
+                    obj.best_model.pickle()
+                    pickle.dump(obj, output)
+                    obj.best_model.unpickle()
             except Exception as e:
                 raise(e)
                 print('Unable to save object')
@@ -335,6 +338,16 @@ class ShiftExperiment():
             raise ValueError('Model not trained - Call .fit')
         return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = normalizeMinMax(self.times, self.normalizer_t)[0].flatten().tolist(), risk = 1, batch = 50), index = index, columns = self.times)
             
+    def normalize(self, cov, ie_to, ie_since, time):
+        """
+            Apply the same normalization than in the training of the model
+        """
+        time, _ = normalizeMinMax(time, self.normalizer_t)
+        ie_to, _ = normalizeMinMax(ie_to, self.normalizer_ieto)
+        ie_since, _ = normalizeMinMax(ie_since, self.normalizer_iesi)
+        cov = pd.DataFrame(self.normalizer.transform(cov), index = cov.index)
+        return cov, ie_to, ie_since, time
+
     def _fit(self, covariates, ie_to, ie_since, mask, event, time, hyperparameter, val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time):
         """
             Fits the model on the given data
