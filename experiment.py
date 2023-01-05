@@ -79,20 +79,17 @@ def process(data, labels):
 
 def normalizeMinMax(data, normalizer = None):
     """
-        Apply a min max standardization for time data
+        Apply a max standardization for time data (do not remove min to ensure 0 is 0)
     """
     if isinstance(data, list):
         data = np.array(data).reshape(-1, 1)
 
     mask = data >= 0
     if normalizer is None:
-        normalizer = MinMaxScaler().fit(data[mask])
+        normalizer = data[mask].max()
 
     normalized_data = data.copy()
-    try:
-        normalized_data[mask] = normalizer.transform(normalized_data[mask])
-    except:
-        normalized_data[mask] = normalizer.transform(normalized_data)[mask]
+    normalized_data[mask] = normalized_data[mask] / normalizer
 
     return normalized_data, normalizer
 
@@ -268,8 +265,8 @@ class ShiftExperiment():
         if self.normalization:
             self.normalizer = StandardScaler().fit(covariates.loc[training_index])
             time, self.normalizer_t = normalizeMinMax(time)
-            ie_to, self.normalizer_ieto = normalizeMinMax(ie_to)
-            ie_since, self.normalizer_iesi = normalizeMinMax(ie_since)
+            ie_to, self.normalizer_ieto = (None, None) if ie_to is None else normalizeMinMax(ie_to) 
+            ie_since, self.normalizer_iesi = (None, None) if ie_to is None else normalizeMinMax(ie_since)
             covariates = pd.DataFrame(self.normalizer.transform(covariates), index = covariates.index)
 
         # Oversample training data
@@ -343,8 +340,8 @@ class ShiftExperiment():
             Apply the same normalization than in the training of the model
         """
         time, _ = normalizeMinMax(time, self.normalizer_t)
-        ie_to, _ = normalizeMinMax(ie_to, self.normalizer_ieto)
-        ie_since, _ = normalizeMinMax(ie_since, self.normalizer_iesi)
+        ie_to, _ = (None, None) if ie_to is None else normalizeMinMax(ie_to, self.normalizer_ieto) 
+        ie_since, _ = (None, None) if ie_to is None else normalizeMinMax(ie_since, self.normalizer_iesi)
         cov = pd.DataFrame(self.normalizer.transform(cov), index = cov.index)
         return cov, ie_to, ie_since, time
 
