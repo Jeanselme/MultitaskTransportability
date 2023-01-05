@@ -37,19 +37,19 @@ class Point(BatchForward):
         self.cumulative = nn.Sequential(*create_nn(inputdim + 1, temporal_layer + [outputdim], PositiveLinear, 'Tanh')[:-1], nn.Softplus())
 
     def forward_batch(self, h, i, m, l):
-        # Flatten the temporal and patient dimensions -> Keep number of covariates
-        tau = torch.flatten(i.clone().detach().requires_grad_(True), 0, 1)
+        # Flatten the temporal and patient dimensions -> Keep number of covariates (except for tau)
+        tau = torch.flatten(i.abs().min(dim = 2)[0].unsqueeze(-1).clone().detach().requires_grad_(True), 0, 1)
         hidden_tau = torch.flatten(h.clone().detach().requires_grad_(True), 0, 1)
         
-        cumulative = []
-        # Need to iterate to avoid that the time of the other prediciton impacts the predictions
-        # Select the dim for which we predict
-        for dim in range(self.outputdim):
-            cumulative_dim = self.cumulative(torch.cat((hidden_tau, tau[:, dim].unsqueeze(-1)), 1))
-            cumulative.append(cumulative_dim[:, dim].unsqueeze(-1))
+        cumulative = self.cumulative(torch.cat((hidden_tau, tau), 1)) 
 
-        cumulative = torch.cat(cumulative, axis = -1)
-        gradient = grad(torch.sum(cumulative), tau, create_graph=True)[0] # Verified 
+        gradient = []
+        for dim in range(self.outputdim):
+          gradient.append(grad(cumulative[:, dim].sum(), tau, create_graph = True)[0].unsqueeze(1))
+        gradient = torch.cat(gradient, -1).unsqueeze(-1)
+
+        cumulative = cumulative - self.cumulative(torch.cat((hidden_tau, torch.zeros_like(tau)), 1)) # Remove time 0
+
         if h.is_cuda:
             gradient = gradient.cuda()
 
@@ -59,14 +59,16 @@ class Point(BatchForward):
 
     def loss(self, alpha, h, i, m, l, batch = None, reduction = 'mean'):
         _, gradient, cumulative = self.forward(h[:, :-1, :], i[:, :-1, :], m, l, batch = batch)
-        mask = (i[:, :-1, :] >= 0) # Predict at all time when will be observed next 
-        loss = - (alpha * (torch.log(gradient + 1e-8) - cumulative))
+        submask = i[:, :-1, :] >= 0 # -1 because you select the prediction to the next
+        nll = torch.zeros_like(i[:, :-1, :])
+        nll[m[:, 1:, :]] = (alpha * (cumulative - torch.log(gradient + 1e-10)))[m[:, 1:, :]] # 1 because you measure if next is well predicted
+        nll[~m[:, 1:, :]] = (alpha * cumulative)[~m[:, 1:, :]]
 
         # Compute difference prediction and real time
         if reduction == 'mean':
-            loss = torch.sum(loss[mask]) / mask.sum()
-        elif reduction == 'likelihood':
-            loss = torch.sum(loss * mask, dim = 1) / mask.sum(dim = 1)
+            loss = torch.mean(nll[submask])
+        elif reduction == 'none':
+            loss = torch.sum(nll * submask, dim = 1) / submask.sum(dim = 1)
 
         return loss
         

@@ -49,7 +49,7 @@ class Neural(BatchForward):
 
         if reduction == 'mean':
             loss = loss.sum() / (l - 1).sum()
-        elif reduction == 'likelihood':
-            loss = torch.sum(loss, dim = 1) / (l - 1).unsqueeze(1).repeat(1, predictions.shape[2])
+        elif reduction == 'none':
+            loss = - torch.sum(loss, dim = 1) / (l - 1).unsqueeze(1).repeat(1, predictions.shape[2])
 
         return loss

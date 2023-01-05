@@ -77,7 +77,7 @@ def compute_dwa(previous, previous_2, T = 2):
     if 'observational' not in previous_2 or 'observational' not in previous:
         return {}
     else:
-        weights = (previous['observational'].detach() / (T*previous_2['observational'].detach())).abs() # avoid problem if loss is negative
+        weights = previous['observational'].exp().detach() / (T*previous_2['observational'].exp().detach()) # TODO: to avoid the problem of negative loss
         weights = torch.nan_to_num(weights) # Null values remove
         weights = nn.Softmax(0)(weights)
         return {'observational': weights}
