@@ -81,8 +81,12 @@ def normalizeMinMax(data, normalizer = None):
     """
         Apply a max standardization for time data (do not remove min to ensure 0 is 0)
     """
+    index = None
     if isinstance(data, list):
-        data = np.array(data).reshape(-1, 1)
+        data = np.array(data)
+    elif isinstance(data, pd.DataFrame):
+        index = data.index
+        data = data.values
 
     mask = data >= 0
     if normalizer is None:
@@ -91,7 +95,10 @@ def normalizeMinMax(data, normalizer = None):
     normalized_data = data.copy()
     normalized_data[mask] = normalized_data[mask] / normalizer
 
-    return normalized_data, normalizer
+    if index is None:
+        return normalized_data, normalizer
+    else:
+        return pd.DataFrame(normalized_data, index = index), normalizer
 
 def select(df, oversample):
     """
