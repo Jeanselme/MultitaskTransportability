@@ -59,6 +59,6 @@ class Neural(BatchForward):
         if reduction == 'mean':
             loss = loss[submask].sum() / submask.sum()
         elif reduction == 'none':
-            loss = - torch.sum(loss * submask, dim = 1) / submask.sum(dim = 1)
+            loss = torch.sum(loss * submask, dim = 1) / submask.sum(dim = 1)
 
         return loss
