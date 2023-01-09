@@ -16,7 +16,7 @@ args = parser.parse_args()
 
 # This number is used only for training, the testing happens only on the first 24 hours to ensure that
 # each patient has the same impact on the final performance computation
-labs = pd.read_csv('data/{}/labs_first_day_subselection.csv'.format(args.dataset), index_col = [0, 1]) if args.sub else pd.read_csv('data/{}/labs_first_day.csv'.format(args.dataset), index_col = [0, 1], header = [0, 1])
+labs = pd.read_csv('data/{}/labs_first_day{}.csv'.format(args.dataset, '_subselection' if args.sub else ''), index_col = [0, 1])
 outcomes = pd.read_csv('data/{}/outcomes_first_day{}.csv'.format(args.dataset, '_subselection' if args.sub else ''), index_col = 0)
 
 if args.dataset == 'mimic':
@@ -64,72 +64,7 @@ results += 'survival_'
 print('Total patients: {}'.format(len(training)))
 print('Training patients: {}'.format(training.sum()))
 
-from experiment import ShiftExperiment
-def time_since_last(series):
-    # Keep the time of the last observation
-    times = series.dropna().index.get_level_values('Time').to_series()
-
-    # Create a series with this time between two observation
-    times_last = pd.Series(np.nan, index = series.index.get_level_values('Time'))
-    times_last.loc[times] = times.values
-    times_last = times_last.ffill()
-
-    # Do the difference between index and time to the previous
-    times_last = series.index.get_level_values('Time').to_series() - times_last
-
-    # Replace time of event for time since last
-    times_last.loc[times] = series.dropna().index.get_level_values('Time').to_series().diff().loc[times]
-    return times_last
-
-def time_to_next(series):
-    # Keep the time of the last observation
-    times = series.dropna().index.get_level_values('Time').to_series()
-
-    # Create a series with this time between two observation
-    times_next = pd.Series(np.nan, index = series.index.get_level_values('Time'))
-    times_next.loc[times] = times.values
-    times_next = times_next.bfill()
-
-    # Do the difference between index and time to the previous
-    times_next = times_next - series.index.get_level_values('Time').to_series()
-
-    # Replace time of event for time since last
-    times_next.loc[times] = -series.dropna().index.get_level_values('Time').to_series().diff(periods = -1).loc[times]
-    return times_next
-
-def compute(data, f = time_since_last):
-    """
-        Returns the table of times since last observations
-    """
-    times = data.groupby('Patient').apply(
-        lambda x: pd.concat({c: f(x[c]) for c in x.columns}, axis = 1).sort_index()
-        )
-    return times
-
-def process(data, labels):
-    """
-        Extracts mask and interevents
-        Preprocesses the time of event and event
-    """
-    cov = data.copy().astype(float)
-    cov = cov.groupby('Patient').ffill() 
-    
-    patient_mean = data.astype(float).groupby('Patient').mean()
-    cov.fillna(patient_mean, inplace=True) 
-
-    pop_mean = patient_mean.mean()
-    cov.fillna(pop_mean, inplace=True) 
-
-    # Compute time to the next event (only when observed)
-    ie_to = compute(data, time_to_next).fillna(-10)
-    ie_since = compute(data, time_since_last).fillna(-10)
-
-    mask = ~data.isna() 
-    time_event = pd.DataFrame((labels.Time.loc[data.index.get_level_values(0)] - data.index.get_level_values(1)).values, index = data.index)
-
-    return cov, ie_to, ie_since, mask, time_event, ~labels.Censored.astype(bool)
-
-
+from experiment import *
 
 layers = [[], [50], [50, 50], [50, 50, 50]]
 
