@@ -10,14 +10,15 @@ parser.add_argument('--mode', '-m', type = int, default = 0, help = 'Mode for tr
 parser.add_argument('--dataset', '-d',  type = str, default = 'mimic', help = 'Dataset to use: mimic, eicu, ')
 parser.add_argument('--sub', '-s', action='store_true', help = 'Run on subset of vitals.')
 parser.add_argument('--over', '-o', action='store_true', help = 'Oversample smaller set.')
+parser.add_argument('--path', '-p',  type = str, default = './', help = 'Path to get data and save results')
 args = parser.parse_args()
 
 
 
 # This number is used only for training, the testing happens only on the first 24 hours to ensure that
 # each patient has the same impact on the final performance computation
-labs = pd.read_csv('data/{}/labs_first_day{}.csv'.format(args.dataset, '_subselection' if args.sub else ''), index_col = [0, 1])
-outcomes = pd.read_csv('data/{}/outcomes_first_day{}.csv'.format(args.dataset, '_subselection' if args.sub else ''), index_col = 0)
+labs = pd.read_csv(args.path + 'data/{}/labs_first_day{}.csv'.format(args.dataset, '_subselection' if args.sub else ''), index_col = [0, 1])
+outcomes = pd.read_csv(args.path + 'data/{}/outcomes_first_day{}.csv'.format(args.dataset, '_subselection' if args.sub else ''), index_col = 0)
 
 if args.dataset == 'mimic':
     outcomes['Death'] = ~outcomes.Death.isna()
@@ -25,7 +26,7 @@ if args.dataset == 'mimic':
 
 # # Split 
 ratio = 0. 
-results = 'results_subselection/' if args.sub else 'results/' 
+results = args.path + 'results_subselection/' if args.sub else args.path + 'results/' 
 results += args.dataset + '/'
 if args.mode == 0:
     print("Applied on Random")
