@@ -238,10 +238,9 @@ class ShiftExperiment():
 
         return res
 
-    def train(self, covariates, time, event, training, ie_to = None, ie_since = None, mask = None, oversampling_ratio = 0., transfer_to = False):
+    def train(self, covariates, time, event, training, ie_to = None, ie_since = None, mask = None, oversampling_ratio = 0.):
         """
             Model is selected with train / test split and maximum likelihood
-
             Args:
                 covariates (Dataframe n * d): Observed covariates
                 
@@ -252,9 +251,6 @@ class ShiftExperiment():
                 ie_since (Dataframe n * d): Interevent times (time since last observation)
                 mask (Dataframe n * d): Indicator observation
                 oversampling_ratio (float): Over sample data in the training set.
-
-                transfer_to (bool): Use data from the non training data for transfer
-
             Returns:
                 (Dict, Dict): Dict of fitted model and Dict of observed performances
         """
@@ -269,13 +265,6 @@ class ShiftExperiment():
         annotated_training = pd.Series("Train", training.index, name = "Use")
         annotated_training.loc[test_index] = "Internal"
         annotated_training[~training] = "External"
-
-        if transfer_to:
-            # Use all the data that would be used if trained on this non training set
-            transfer_to_index = training[~training].index
-            transfer_to_index, _ = train_test_split(transfer_to_index, train_size = 0.9, 
-                                            random_state = self.random_seed)
-            annotated_training[transfer_to_index] = "Transfer"
 
         # Normalize data using only training data
         if self.normalization:
@@ -309,13 +298,6 @@ class ShiftExperiment():
         val_ies = None if ie_since is None else ie_since.loc[val_index]
         val_mask = None if mask is None else mask.loc[val_index]
 
-        trans_cov, trans_iet, trans_ies, trans_mask = None, None, None, None
-        if transfer_to:
-            trans_cov = covariates.loc[transfer_to_index]
-            trans_iet = None if ie_to is None else ie_to.loc[transfer_to_index]
-            trans_ies = None if ie_since is None else ie_since.loc[transfer_to_index]
-            trans_mask = None if mask is None else mask.loc[transfer_to_index]
-
         # Train on subset one domain
         ## Grid search best params
         for i, hyper in enumerate(self.hyper_grid):
@@ -324,8 +306,7 @@ class ShiftExperiment():
                     # When object is reloaded - Avoid to recompute same parameters
                     continue
                 model = self._fit(train_cov, train_iet, train_ies, train_mask, train_event, train_time, hyper, 
-                                    val_cov, val_iet, val_ies, val_mask, val_event, val_time, 
-                                    trans_cov, trans_iet, trans_ies, trans_mask)
+                                    val_cov, val_iet, val_ies, val_mask, val_event, val_time)
 
                 if model is not None:
                     nll = self._nll(model, dev_cov, dev_iet, dev_ies, dev_mask, dev_event, dev_time)
@@ -346,20 +327,16 @@ class ShiftExperiment():
         """
             Predicts the risk for each given covariates
             Data MUST be normalized in the same way
-
             Args:
                 covariates (Dataframe): Data on which to train
                 ie_to, ie_since (Dataframe n * d): Interevent times (time to next observation, time since last)
                 mask (Dataframe n * d): Indicator observation
-
             Returns:
                 Dataframe (n * len(self.time))
         """
         if self.best_model is None:
             raise ValueError('Model not trained - Call .fit')
-        horizon = normalizeMinMax(self.times, self.normalizer_t)[0].flatten().tolist() if self.normalization else self.times
-        print(horizon, self.normalizer_t)
-        return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = horizon, risk = 1, batch = 50), index = index, columns = self.times)
+        return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = normalizeMinMax(self.times, self.normalizer_t)[0].flatten().tolist(), risk = 1, batch = 50), index = index, columns = self.times)
             
     def normalize(self, cov, ie_to, ie_since, time):
         """
@@ -371,9 +348,7 @@ class ShiftExperiment():
         cov = pd.DataFrame(self.normalizer.transform(cov), index = cov.index)
         return cov, ie_to, ie_since, time
 
-    def _fit(self, covariates, ie_to, ie_since, mask, event, time, hyperparameter, 
-            val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time,
-            trans_cov, trans_iet, trans_ies, trans_mask):
+    def _fit(self, covariates, ie_to, ie_since, mask, event, time, hyperparameter, val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time):
         """
             Fits the model on the given data
         """
@@ -389,9 +364,7 @@ class ShiftExperiment():
         if self.model == "joint":
             model = RNNJoint(inputdim, outputdim, **hyperparameter)
             return model.fit(covariates, ie_to, ie_since, mask, event, time,
-                             val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time, 
-                             trans_cov, trans_iet, trans_ies, trans_mask,
-                             lr = lr, batch = batch, full_finetune = full)
+                             val_cov, val_ie_to, val_ie_since, val_mask, val_event, val_time, lr = lr, batch = batch, full_finetune = full)
         elif self.model == "deepsurv":
             model = DeepSurv(inputdim, outputdim, **hyperparameter)
             return model.fit(covariates, ie_to, ie_since, mask, event, time,
