@@ -201,21 +201,6 @@ se = ShiftExperiment.create(model = 'joint',
 
 se.train(cov, time, event, training, ie_to, ie_since, mask)
 
-# Joint with full input
-labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
-cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
-
-mask_mixture = np.full(len(cov.columns), False)
-mask_mixture[:len(labs.columns)] = True
-
-hyper_grid_joint['mixture_mask'] = [mask_mixture] 
-
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint_value+time+mask+WASSERSTEIN')
-
-se.train(cov, time, event, training, ie_to, ie_since, mask, transfer_to = True)
-
 # Joint GRU-D with full input
 labs_selection = pd.concat([labs.copy(), labs.isna().add_suffix('_mask').astype(float), compute(labs, time_since_last).add_suffix('_time')], axis = 1)
 cov, ie_to, ie_since, mask, time, event = process(labs_selection, outcomes)
@@ -230,16 +215,6 @@ se = ShiftExperiment.create(model = 'joint',
                     path = results + 'joint_gru_d_value+time+mask')
 
 se.train(cov, time, event, training, ie_to, ie_since, mask)
-
-# Full Fine Tune
-hyper_grid_joint['full_finetune'] = [True] 
-
-se = ShiftExperiment.create(model = 'joint', 
-                    hyper_grid = hyper_grid_joint,
-                    path = results + 'joint_full_finetune_value+time+mask')
-
-se.train(cov, time, event, training, ie_to, ie_since, mask)
-
 
 # ##################
 # # ABLATION STUDY #
