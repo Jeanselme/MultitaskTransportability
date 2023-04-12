@@ -41,14 +41,12 @@ class Point(BatchForward):
         tau = torch.flatten(i.abs().min(dim = 2)[0].unsqueeze(-1).clone().detach().requires_grad_(True), 0, 1)
         hidden_tau = torch.flatten(h.clone().detach().requires_grad_(True), 0, 1)
         
-        cumulative = self.cumulative(torch.cat((hidden_tau, tau), 1)) 
+        cumulative = tau * self.cumulative(torch.cat((hidden_tau, tau), 1))  # To ensure 0 at time 0
 
         gradient = []
         for dim in range(self.outputdim):
           gradient.append(grad(cumulative[:, dim].sum(), tau, create_graph = True)[0].unsqueeze(1))
         gradient = torch.cat(gradient, -1).unsqueeze(-1)
-
-        cumulative = cumulative - self.cumulative(torch.cat((hidden_tau, torch.zeros_like(tau)), 1)) # Remove time 0
 
         if h.is_cuda:
             gradient = gradient.cuda()
