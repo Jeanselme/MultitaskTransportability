@@ -1,9 +1,11 @@
 from sklearn.model_selection import ParameterSampler, train_test_split
 from sksurv.metrics import concordance_index_ipcw, brier_score, cumulative_dynamic_auc
 
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from models.rnn_joint import RNNJoint
 from models.deepsurv import DeepSurv
+
+from pycox.evaluation import EvalSurv
 
 import pandas as pd
 import numpy as np
@@ -52,7 +54,7 @@ def compute(data, f = time_since_last):
     times = data.groupby('Patient').apply(
         lambda x: pd.concat({c: f(x[c]) for c in x.columns}, axis = 1).sort_index()
         )
-    return times
+    return times.fillna(-10)
 
 def process(data, labels):
     """
@@ -69,8 +71,8 @@ def process(data, labels):
     cov.fillna(pop_mean, inplace=True) 
 
     # Compute time to the next event (only when observed)
-    ie_to = compute(data, time_to_next).fillna(-10)
-    ie_since = compute(data, time_since_last).fillna(-10)
+    ie_to = compute(data, time_to_next)
+    ie_since = compute(data, time_since_last)
 
     mask = ~data.isna() 
     time_event = pd.DataFrame((labels.Time.loc[data.index.get_level_values(0)] - data.index.get_level_values(1)).values, index = data.index)
@@ -114,29 +116,43 @@ def select(df, oversample):
     else:
         return df.loc[oversample].reset_index(drop=True)
 
-def evaluate(e_train, t_train, e_test, t_test, risk, iterations = 100, horizons = []):
-    et_train = np.array([(e_train[i], t_train[i]) if t_train[i] != max(t_train) else (e_train[i], max(t_test)) for i in range(len(e_train))],
+def evaluate(e, t, risk, train_index, test_index, iterations = 100, horizons = []):
+    # Cast names to time
+    risk.columns = risk.columns.astype(float)
+    times = risk.columns.to_numpy()
+
+    e_train, t_train, risk_train = e.loc[train_index], t.loc[train_index], risk.loc[train_index]
+    e_test, t_test, risk_test = e.loc[test_index], t.loc[test_index], risk.loc[test_index]
+
+    et_train = np.array([(e_train[i], t_train[i]) for i in e_train.index],
                      dtype = [('e', bool), ('t', float)])
-    
+
     cis, rocs, brs = {t: [] for t in horizons}, {t: [] for t in horizons}, {t: [] for t in horizons}
     total = iterations
     for _ in range(iterations):
-        bootstrap = np.random.choice(np.arange(len(risk)), size = len(risk), replace = True) 
-        bootstrap = [j for j in bootstrap]
+        bootstrap = np.random.choice(risk_test.index, size = len(risk_test), replace = True) 
         et_test = np.array([(e_test[j], t_test[j]) for j in bootstrap],
                             dtype = [('e', bool), ('t', float)])
 
-        risk_iteration = risk[bootstrap]
+        risk_iteration = risk_test.loc[bootstrap]
         survival_iteration = 1 - risk_iteration
+
+        # Compute cumulated metrics
+        km = EvalSurv(1 - risk_train.T, t_train.values, e_train.values, censor_surv = 'km')
+        test_eval = EvalSurv(survival_iteration.T, t_test[bootstrap].values, e_test[bootstrap].values, censor_surv = km)
+
+        cis['Overall'] = test_eval.concordance_td()
+        brs['Overall'] = test_eval.integrated_brier_score(times)
+
         try:
-            b = brier_score(et_train, et_test, survival_iteration, horizons)[1]
+            indexes = [np.argmin(np.abs(times - te)) for te in horizons]
+            b = brier_score(et_train, et_test, survival_iteration.iloc[:, indexes], horizons)[1]
             # Concordance and ROC for each time
-            for j, time in enumerate(horizons):
+            for j, (index, time) in enumerate(zip(indexes, horizons)):
                 brs[time].append(b[j])
-                cis[time].append(concordance_index_ipcw(et_train, et_test, risk_iteration[:, j], time)[0])
-                rocs[time].append(cumulative_dynamic_auc(et_train, et_test, risk_iteration[:, j], time)[0][0])
+                cis[time].append(concordance_index_ipcw(et_train, et_test, risk_iteration.iloc[:, index], time)[0])
+                rocs[time].append(cumulative_dynamic_auc(et_train, et_test, risk_iteration.iloc[:, index], time)[0][0])
         except Exception as e:
-            total -= 1
             continue
     print("Effective iterations: ", total)
     result = {}
@@ -170,11 +186,10 @@ class ToyExperiment():
 class ShiftExperiment():
 
     def __init__(self, model = 'joint', hyper_grid = None, n_iter = 100, 
-                random_seed = 0, times = [1, 7, 14, 30], normalization = True, path = 'results', save = True):
+                random_seed = 0, normalization = True, path = 'results', save = True):
         self.model = model
         self.hyper_grid = list(ParameterSampler(hyper_grid, n_iter = n_iter, random_state = random_seed) if hyper_grid is not None else [{}])
         self.random_seed = random_seed
-        self.times = times
         
         self.iter = 0
         self.best_nll = np.inf
@@ -186,7 +201,7 @@ class ShiftExperiment():
 
     @classmethod
     def create(cls, model = 'joint', hyper_grid = None, n_iter = 100, 
-                random_seed = 0, times = [1, 7, 14, 30], path = 'results', normalization = True, force = False, save = True):
+                random_seed = 0, path = 'results', normalization = True, force = False, save = True):
         print(path)
         if not(force):
             if os.path.isfile(path + '.csv'):
@@ -195,14 +210,13 @@ class ShiftExperiment():
                 print('Loading previous copy')
                 try:
                     obj = cls.load(path + '.pickle')
-                    obj.times = times
                     return obj
                 except:
                     print('ERROR: Reinitalizing object')
                     os.remove(path + '.pickle')
                     pass
                 
-        return cls(model, hyper_grid, n_iter, random_seed, times, normalization, path, save)
+        return cls(model, hyper_grid, n_iter, random_seed, normalization, path, save)
 
     @staticmethod
     def load(path):
@@ -219,16 +233,13 @@ class ShiftExperiment():
     @staticmethod
     def save(obj):
         with open(obj.path + '.pickle', 'wb') as output:
-            try:
-                if obj.best_model is None:
-                    pickle.dump(obj, output)
-                else:
-                    obj.best_model.pickle()
-                    pickle.dump(obj, output)
-                    obj.best_model.unpickle()
-            except Exception as e:
-                raise(e)
-                print('Unable to save object')
+            if obj.best_model is None:
+                pickle.dump(obj, output)
+            else:
+                obj.best_model.pickle()
+                pickle.dump(obj, output)
+                obj.best_model.unpickle()
+
                 
     def save_results(self, predictions, used):
         res = pd.concat([predictions, used], axis = 1)
@@ -254,6 +265,8 @@ class ShiftExperiment():
             Returns:
                 (Dict, Dict): Dict of fitted model and Dict of observed performances
         """
+        self.times = np.sort(np.append(np.linspace(time.min(), time.max(), 100, endpoint = False), [1, 7, 14, 30])) # Evaluate at regular points and the evaluation points
+
         # Split source domain into train, test and dev
         all_training = training[training].index
         training_index, test_index = train_test_split(all_training, train_size = 0.9, 
@@ -336,7 +349,8 @@ class ShiftExperiment():
         """
         if self.best_model is None:
             raise ValueError('Model not trained - Call .fit')
-        return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = normalizeMinMax(self.times, self.normalizer_t)[0].flatten().tolist(), risk = 1, batch = 50), index = index, columns = self.times)
+        eval_times = normalizeMinMax(self.times, self.normalizer_t)[0].flatten().tolist() if self.normalization else self.times.tolist()
+        return pd.DataFrame(1 - self.best_model.predict(covariates, ie_to, ie_since, mask, horizon = eval_times, risk = 1, batch = 50), index = index, columns = self.times)
             
     def normalize(self, cov, ie_to, ie_since, time):
         """

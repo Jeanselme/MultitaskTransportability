@@ -100,7 +100,10 @@ class DeepSurv(BatchForward):
             # Interpolate to make the prediction at the point of interest
             result = []
             for h in horizon:
-                _, closest = torch.min((self.times <= h), 0)
+                if h > self.times[-1]:
+                    closest = len(self.times)
+                else:
+                    _, closest = torch.min((self.times <= h), 0)
                 closest -= 1
                 if closest < 0:
                     result.append(torch.ones((len(predictions))))
