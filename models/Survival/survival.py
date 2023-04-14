@@ -106,7 +106,7 @@ class DeepSurv(BatchForward):
                     _, closest = torch.min((self.times <= h), 0)
                 closest -= 1
                 if closest < 0:
-                    result.append(torch.ones((len(predictions))))
+                    result.append(torch.ones_like(predictions[:, 0]))
                 else:
                     result.append(predictions[:, closest])
             predictions = torch.stack(result).T
