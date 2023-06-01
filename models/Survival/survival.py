@@ -48,7 +48,7 @@ class DeepSurv(BatchForward):
         return outcome,
 
     def loss(self, h, e, t, batch = None, reduction = 'mean'):
-        loss, e = 0, e.squeeze()
+        loss, e = 0., e.squeeze()
         predictions, = self.forward(h, batch = batch)
 
         ## Sum all previous event : **Require order by decreasing time**

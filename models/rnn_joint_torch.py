@@ -14,7 +14,7 @@ class RNNJointTorch(BatchForward):
     def __init__(self, inputdim, outputdim = 1, 
                 typ = 'LSTM', layers = 1, hidden = 10, recurrent_args = {},
                 survival = "deepsurv", survival_args = {}, 
-                observational_components = 1, weight = 0.2,
+                observational_components = 1, weight = 0.5,
                 temporal = "None", temporal_args = {},
                 longitudinal = "None", longitudinal_args = {}, 
                 missing = "None", missing_args = {}, mixture_mask = None):

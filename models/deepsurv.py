@@ -140,6 +140,7 @@ def train_torch_model(model_torch,
         model_torch.train()
         # Random batch for backprop training
         np.random.shuffle(batch_order)
+        train_loss = 0
         for j in range(nbatches):
             order = np.sort(batch_order[j*batch:(j+1)*batch]) # Need to conserve order
             xb, eb, tb = x_train[order], e_train[order], t_train[order]
@@ -151,6 +152,8 @@ def train_torch_model(model_torch,
             loss = model_torch.loss(xb, eb, tb)
             loss.backward()
             optimizer.step()
+            train_loss += loss.item()
+        train_loss /= nbatches
         
         # Evaluate validation loss - Batch
         if x_valid is None:
@@ -160,25 +163,23 @@ def train_torch_model(model_torch,
         model_torch.eval()
         loss = model_torch.loss(x_valid, e_valid, t_valid, batch = batch).item()
         
-        t_bar.set_description("Loss survival: {:.3f}".format(loss))
+        t_bar.set_description("Loss survival: {:.3f} - Train: {:.3f}".format(loss, train_loss))
         t_bar.set_postfix({'Minimal loss observed': best_loss})
 
         if np.isnan(loss):
             print('ERROR - Loss')
             return None
 
-        if loss > previous_loss:
+        if loss >= previous_loss:
             # If less good than before
             if wait == patience:
                 break
             else:
                 wait += 1
-        elif loss < best_loss:
+        else:
             # Update new best
             best_weight = deepcopy(model_torch.state_dict())
             best_loss = loss
-            wait = 0
-        else:
             wait = 0
         
         previous_loss = loss

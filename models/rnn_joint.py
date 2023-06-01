@@ -145,7 +145,7 @@ class RNNJoint():
                     performances['Longitudinal'][j].append(nll['observational'][1].item())
                     performances['Missing'][j].append(nll['observational'][2].item())
 
-        return {c: {j: (np.array(performances[c][j]) - global_nll[c]) / global_nll[c] for j in performances[c]} for c in performances}
+        return {c: {j: (np.array(performances[c][j]) - global_nll[c]) / abs(global_nll[c]) for j in performances[c]} for c in performances}
           
 
     def preprocess(self, x, ie_to, ie_since, m, e = None, t = None):
@@ -237,6 +237,7 @@ def train_torch_model(model_torch,
         model_torch.train()
         # Random batch for backprop training
         np.random.shuffle(batch_order)
+        train_loss = 0
         for j in range(nbatches):
             order = np.sort(batch_order[j*batch:(j+1)*batch]) # Need to conserve order
             xb, itb, isb, mb, tb, eb, lb = x_train[order], ie_to_train[order], ie_since_train[order], m_train[order],\
@@ -246,10 +247,12 @@ def train_torch_model(model_torch,
                 continue
 
             optimizer.zero_grad()
-            loss, _ = model_torch.loss(xb, itb, isb, mb, eb, lb, tb, 
+            loss, train_losses = model_torch.loss(xb, itb, isb, mb, eb, lb, tb, 
                         observational = full, weights = weights)
             loss.backward()
             optimizer.step()
+            train_loss += train_losses['survival'].item()
+        train_loss /= nbatches
         
         # Evaluate validation loss - Batch
         if x_valid is None:
@@ -262,12 +265,12 @@ def train_torch_model(model_torch,
                                 m_valid, e_valid, l_valid, t_valid, 
                                 batch = batch, observational = full)
         
-        if full:
-            t_bar.set_description("Loss full: {:.3f} - {:.3f}".format(loss.item(), previous_losses['survival'].item()))
-        else:
-            t_bar.set_description("Loss survival: {:.3f}".format(loss.item()))
-        t_bar.set_postfix({'Minimal loss observed': best_loss})
         survival_loss = previous_losses['survival'].item()
+        if full:
+            t_bar.set_description("Loss full: {:.3f} - {:.3f} - Training: {:.3f}".format(loss.item(), survival_loss, train_loss))
+        else:
+            t_bar.set_description("Loss survival: {:.3f} - Training: {:.3f}".format(survival_loss, train_loss))
+        t_bar.set_postfix({'Minimal loss observed': best_loss})
         
         if np.isnan(survival_loss):
             print('ERROR - Loss')
@@ -279,7 +282,7 @@ def train_torch_model(model_torch,
             best_loss = survival_loss
             wait = 0
 
-        if loss > previous_loss:
+        if loss >= previous_loss:
             # If less good than before
             if full and (wait == patience):
                 pretrain_ite = i + 1
