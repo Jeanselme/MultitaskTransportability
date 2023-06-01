@@ -11,6 +11,7 @@ parser.add_argument('--dataset', '-d',  type = str, default = 'mimic', help = 'D
 parser.add_argument('--sub', '-s', action='store_true', help = 'Run on subset of vitals.')
 parser.add_argument('--over', '-o', action='store_true', help = 'Oversample smaller set.')
 parser.add_argument('--path', '-p',  type = str, default = './', help = 'Path to get data and save results')
+parser.add_argument('--debug', action='store_true', help = 'Run on subset of patients.')
 args = parser.parse_args()
 
 
@@ -23,6 +24,10 @@ outcomes = pd.read_csv(args.path + 'data/{}/outcomes_first_day{}.csv'.format(arg
 if args.dataset == 'mimic':
     outcomes['Death'] = ~outcomes.Death.isna()
     assert abs(args.mode) < 3, 'Mode not adapted for the selected dataset.'
+
+if args.debug:
+    outcomes = outcomes.sample(frac = 0.2, random_state = 0)
+    labs = labs[labs.index.get_level_values(0).isin(outcomes.index)]
 
 # # Split 
 ratio = 0. 
@@ -91,7 +96,7 @@ se = ShiftExperiment.create(model = 'deepsurv',
                     }, 
                     path = results + 'deepsurv_count')
 
-se.train(pd.concat([last, count], axis = 1), outcomes.Remaining, outcomes.Death, training)
+se.train(pd.concat([last, count.add_prefix('count_')], axis = 1), outcomes.Remaining, outcomes.Death, training)
 
 hyper_grid = {
         "layers": [1, 2, 3],
@@ -126,6 +131,7 @@ labs_resample = labs.copy()
 labs_resample = labs_resample.set_index(pd.to_datetime(labs_resample.index.get_level_values('Time'), unit = 'D'), append = True) 
 labs_resample = labs_resample.groupby('Patient').resample('1H', level = 2).mean() 
 labs_resample.index = labs_resample.index.map(lambda x: (x[0], (x[1] - datetime.datetime(1970,1,1)).total_seconds() / (3600 * 24)))
+
 # Ensure last time step is the same
 shift = labs_resample.groupby('Patient').apply(lambda x: x.index[-1][1]) - labs.groupby('Patient').apply(lambda x: x.index[-1][1])
 labs_resample.index = labs_resample.index.map(lambda x: (x[0], (x[1] - shift[x[0]])))
@@ -151,6 +157,7 @@ se = ShiftExperiment.create(model = 'joint',
 
 se.train(cov, time, event, training, ie_to, ie_since, mask)
 
+# Hyper grid
 hyper_grid_joint = hyper_grid.copy()
 hyper_grid_joint.update(
     {
