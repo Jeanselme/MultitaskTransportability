@@ -54,7 +54,7 @@ def compute(data, f = time_since_last):
     times = data.groupby('Patient').apply(
         lambda x: pd.concat({c: f(x[c]) for c in x.columns}, axis = 1).sort_index()
         )
-    return times.fillna(-10)
+    return times.fillna(-1)
 
 def process(data, labels):
     """
@@ -128,10 +128,11 @@ def evaluate(e, t, risk, train_index, test_index, iterations = 100, horizons = [
                      dtype = [('e', bool), ('t', float)])
 
     cis, rocs, brs = {t: [] for t in horizons}, {t: [] for t in horizons}, {t: [] for t in horizons}
+    cis['Overall'], brs['Overall'] = [], []
     total = iterations
     for _ in range(iterations):
         bootstrap = np.random.choice(risk_test.index, size = len(risk_test), replace = True) 
-        et_test = np.array([(e_test[j], t_test[j]) for j in bootstrap],
+        et_test = np.array([(e_test.loc[j], t_test.loc[j]) for j in bootstrap],
                             dtype = [('e', bool), ('t', float)])
 
         risk_iteration = risk_test.loc[bootstrap]
@@ -139,11 +140,13 @@ def evaluate(e, t, risk, train_index, test_index, iterations = 100, horizons = [
 
         # Compute cumulated metrics
         km = EvalSurv(1 - risk_train.T, t_train.values, e_train.values, censor_surv = 'km')
-        test_eval = EvalSurv(survival_iteration.T, t_test[bootstrap].values, e_test[bootstrap].values, censor_surv = km)
+        test_eval = EvalSurv(survival_iteration.T, t_test.loc[bootstrap].values, e_test.loc[bootstrap].values, censor_surv = km)
 
-        cis['Overall'] = test_eval.concordance_td()
-        brs['Overall'] = test_eval.integrated_brier_score(times)
-
+        try:
+            cis['Overall'].append(test_eval.concordance_td())
+            brs['Overall'].append(test_eval.integrated_brier_score(times))
+        except Exception as e:
+            continue
         try:
             indexes = [np.argmin(np.abs(times - te)) for te in horizons]
             b = brier_score(et_train, et_test, survival_iteration.iloc[:, indexes], horizons)[1]
@@ -156,14 +159,14 @@ def evaluate(e, t, risk, train_index, test_index, iterations = 100, horizons = [
             continue
     print("Effective iterations: ", total)
     result = {}
-    for horizon in horizons:
+    for horizon in cis:
         result.update({
-          ("TD Concordance Index", 'Mean', horizon): np.mean(cis[horizon]),
-          ("TD Concordance Index", 'Std', horizon): np.std(cis[horizon]), 
-          ("Brier Score", 'Mean', horizon): np.mean(brs[horizon]),
-          ("Brier Score", 'Std', horizon): np.std(brs[horizon]),
-          ("ROC AUC", 'Mean', horizon): np.mean(rocs[horizon]),
-          ("ROC AUC", 'Std', horizon): np.std(rocs[horizon]),
+          ("TD Concordance Index", 'Mean', str(horizon)): np.mean(cis[horizon]),
+          ("TD Concordance Index", 'Std', str(horizon)): np.std(cis[horizon]), 
+          ("Brier Score", 'Mean', str(horizon)): np.mean(brs[horizon]),
+          ("Brier Score", 'Std', str(horizon)): np.std(brs[horizon]),
+          ("ROC AUC", 'Mean', str(horizon)): np.mean(rocs[horizon]) if horizon in rocs else np.nan,
+          ("ROC AUC", 'Std', str(horizon)): np.std(rocs[horizon]) if horizon in rocs else np.nan,
         })
 
     return pd.Series({r: result[r] for r in sorted(result)}), cis
@@ -299,17 +302,17 @@ class ShiftExperiment():
         train_ies = None if ie_since is None else select(ie_since, oversampling)
         train_mask = None if mask is None else select(mask, oversampling)
 
-        dev_cov, dev_time, dev_event = covariates.loc[dev_index], time.loc[dev_index], \
-                                            event.loc[dev_index]
-        dev_iet = None if ie_to is None else ie_to.loc[dev_index]
-        dev_ies = None if ie_since is None else ie_since.loc[dev_index]
-        dev_mask = None if mask is None else mask.loc[dev_index]
+        dev_cov, dev_time, dev_event = select(covariates, dev_index), select(time, dev_index), \
+                                             select(event, dev_index)
+        dev_iet = None if ie_to is None else select(ie_to, dev_index)
+        dev_ies = None if ie_since is None else select(ie_since, dev_index)
+        dev_mask = None if mask is None else select(mask, dev_index)
 
-        val_cov, val_time, val_event = covariates.loc[val_index], time.loc[val_index], \
-                                            event.loc[val_index]
-        val_iet = None if ie_to is None else ie_to.loc[val_index]
-        val_ies = None if ie_since is None else ie_since.loc[val_index]
-        val_mask = None if mask is None else mask.loc[val_index]
+        val_cov, val_time, val_event = select(covariates, val_index), select(time, val_index), \
+                                             select(event, val_index)
+        val_iet = None if ie_to is None else select(ie_to, val_index)
+        val_ies = None if ie_since is None else select(ie_since, val_index)
+        val_mask = None if mask is None else select(mask, val_index)
 
         # Train on subset one domain
         ## Grid search best params
