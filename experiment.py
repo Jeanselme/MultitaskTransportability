@@ -268,7 +268,7 @@ class ShiftExperiment():
             Returns:
                 (Dict, Dict): Dict of fitted model and Dict of observed performances
         """
-        assert (covariates.index.get_level_values(0) == training.index).all(), 'Misaligned indexesss'
+        assert (covariates.index.get_level_values(0).unique() == training.index).all(), 'Misaligned indexesss'
         self.times = np.sort(np.append(np.linspace(time.min(), time.max(), 100, endpoint = False), [1, 7, 14, 30])) # Evaluate at regular points and the evaluation points
 
         # Split source domain into train, test and dev
