@@ -26,7 +26,7 @@ if args.dataset == 'mimic':
     assert abs(args.mode) < 3, 'Mode not adapted for the selected dataset.'
 
 if args.debug:
-    outcomes = outcomes.sample(frac = 0.2, random_state = 0)
+    outcomes = outcomes.sample(frac = 0.2, random_state = 0).sort_index()
     labs = labs[labs.index.get_level_values(0).isin(outcomes.index)]
 
 # # Split 
