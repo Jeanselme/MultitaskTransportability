@@ -4,3 +4,6 @@
 [submodule "SyntheticClinicalPresence"]
 	path = SyntheticClinicalPresence
 	url = git@github.com:Jeanselme/SyntheticClinicalPresence.git
+[submodule "NeuralFineGray"]
+	path = NeuralFineGray
+	url = https://github.com/Jeanselme/NeuralFineGray

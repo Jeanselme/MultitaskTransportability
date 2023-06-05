@@ -277,7 +277,7 @@ class ShiftExperiment():
                                             random_state = self.random_seed) # For testing
         training_index, dev_index = train_test_split(training_index, train_size = 0.9, 
                                             random_state = self.random_seed) # For parameter tuning
-        training_index, val_index = train_test_split(training_index, train_size = 0.9, 
+        dev_index, val_index = train_test_split(dev_index, train_size = 0.5, 
                                             random_state = self.random_seed) # For early stopping
         annotated_training = pd.Series("Train", training.index, name = "Use")
         annotated_training.loc[test_index] = "Internal"
