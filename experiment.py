@@ -273,7 +273,7 @@ class ShiftExperiment():
 
         # Split source domain into train, test and dev
         all_training = training[training].index
-        training_index, test_index = train_test_split(all_training, train_size = 0.9, 
+        training_index, test_index = train_test_split(all_training, train_size = 0.8, 
                                             random_state = self.random_seed) # For testing
         training_index, dev_index = train_test_split(training_index, train_size = 0.9, 
                                             random_state = self.random_seed) # For parameter tuning
