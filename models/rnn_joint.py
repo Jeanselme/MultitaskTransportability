@@ -202,7 +202,7 @@ def train_torch_model(model_torch,
         if i == pretrain_ite:
             # End pretraining => Train only the survival model
             ## Upload best weights and reinitalize losses
-            previous_loss = survival_loss
+            previous_loss = survival_loss if x_valid is not None else None
             full = False
             wait = 0
 
