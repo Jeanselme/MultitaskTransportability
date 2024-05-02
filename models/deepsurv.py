@@ -1,6 +1,4 @@
 from .Survival.survival import Survival
-from .rnn_joint import RNNJoint
-from .utils import sort_given_t, pandas_to_list
 from copy import deepcopy
 import pandas as pd
 from tqdm import tqdm
@@ -22,14 +20,16 @@ class DeepSurv():
         self.fitted = False
         self.cuda = cuda
 
-    def loss(self, x, i, m, e, t, batch = None):
-        if not self.fitted:
-            raise Exception("The model has not been fitted yet.")
-        x, e, t = self.preprocess(x, e, t)
-        x, e, t = sort_given_t(x, e, t = t)
-        return self.model.loss(x, e, batch = batch).item() # Only survival loss
+    def pickle(self):
+        pass
+    def unpickle(self):
+        pass
 
-    def predict(self, x, i, m, horizon = None, risk = 1, batch = None):
+    def loss(self, x, ie_to, ie_since, m, e, t, batch = None):
+        x, e, t = self.preprocess(x, e, t)
+        return self.model.loss(x, e, t, batch = batch).item() # Only survival loss
+
+    def predict(self, x, ie_to, ie_since, m, horizon = None, risk = 1, batch = None):
         """
         Predict the outcome
 
@@ -48,10 +48,10 @@ class DeepSurv():
         if not self.fitted:
             raise Exception("The model has not been fitted yet.")
         x, _, _= self.preprocess(x)
-        return self.model.predict(x, horizon = horizon, risk  = risk, batch = batch).detach().cpu().numpy()
+        return self.model.predict(x, horizon = horizon, risk = risk, batch = batch).detach().cpu().numpy()
 
-    def fit(self, x_train, e_train, t_train,
-             x_valid = None, e_valid = None, t_valid = None, **params):
+    def fit(self, x_train, ie_to_train, ie_since_train, m_train, e_train, t_train,
+             x_valid = None, ie_to_valid = None, ie_since_valid = None, m_valid = None, e_valid = None, t_valid = None, **params):
         """
         Fit the model
 
@@ -73,11 +73,20 @@ class DeepSurv():
             x_valid, e_valid, t_valid, **params).eval()
 
         if self.model:
-            self.model.compute_baseline(x_train, e_train, t_train, batch = 100)
-            self.fitted = True
             return self
         else:
             return None
+        
+    def fit_baseline(self, x_train, ie_to_train, ie_since_train, m_train, e_train, t_train,
+                     x_valid = None, ie_to_valid = None, ie_since_valid = None, m_valid = None, e_valid = None, t_valid = None, **params):
+        """ 
+            Fit the baselines on the given data
+        """
+        x_train, e_train, t_train = self.preprocess(x_train, e_train, t_train)
+        self.model.eval()
+        self.model.compute_baseline(x_train, e_train, t_train, batch = 100)
+        self.fitted = True
+        return self
 
     def preprocess(self, x, e = None, t = None):
         """
@@ -114,38 +123,37 @@ class DeepSurv():
 def train_torch_model(model_torch, 
     x_train, e_train, t_train,
     x_valid, e_valid, t_valid,
-    epochs = 500, pretrain_ite = 500, lr = 0.0001, batch = 500, patience = 5, weight_decay = 0.001):
+    epochs = 1000, lr = 0.0001, batch = 500, patience = 5, 
+    weight_decay = 0.001):
 
     # Initialization parameters
-    t_bar = tqdm(range(epochs + pretrain_ite))
+    t_bar = tqdm(range(epochs))
     
     nbatches = int(x_train.shape[0] / batch) + 1 # Number batch
     batch_order = np.arange(x_train.shape[0]) # Index of all data in training
-    previous_loss, best_loss = np.inf, np.inf # Keep track of losses
+    best_loss = np.inf # Keep track of losses
     best_weight = deepcopy(model_torch.state_dict()) # Keep best parameters
     
     optimizer = torch.optim.Adam(model_torch.parameters(), lr = lr, weight_decay = weight_decay)
-
-    # Sort batch for likelihood computation
-    x_train, e_train, t_train = sort_given_t(x_train, e_train, t = t_train)
-    if x_valid is not None:
-        x_valid, e_valid, t_valid = sort_given_t(x_valid, e_valid, t = t_valid)
 
     for i in t_bar:
         model_torch.train()
         # Random batch for backprop training
         np.random.shuffle(batch_order)
+        train_loss = 0
         for j in range(nbatches):
-            order = np.sort(batch_order[j*batch:(j+1)*batch]) # Need to conserve order
-            xb, eb = x_train[order], e_train[order]
+            order = batch_order[j*batch:(j+1)*batch]
+            xb, eb, tb = x_train[order], e_train[order], t_train[order]
 
-            if xb.shape[0] == 0:
+            if xb.shape[0] != batch:
                 continue
 
             optimizer.zero_grad()
-            loss = model_torch.loss(xb, eb)
+            loss = model_torch.loss(xb, eb, tb)
             loss.backward()
             optimizer.step()
+            train_loss += loss.item()
+        train_loss /= nbatches
         
         # Evaluate validation loss - Batch
         if x_valid is None:
@@ -153,30 +161,27 @@ def train_torch_model(model_torch,
             continue
         
         model_torch.eval()
-        loss = model_torch.loss(x_valid, e_valid, batch = batch).item()
+        loss = model_torch.loss(x_valid, e_valid, t_valid, batch = batch).item()
         
-        t_bar.set_description("Loss survival: {:.3f}".format(loss))
+        t_bar.set_description("Loss survival: {:.3f} - Train: {:.3f}".format(loss, train_loss))
         t_bar.set_postfix({'Minimal loss observed': best_loss})
 
         if np.isnan(loss):
             print('ERROR - Loss')
             return None
 
-        if loss > previous_loss:
+        if loss >= best_loss:
             # If less good than before
             if wait == patience:
                 break
             else:
                 wait += 1
-        elif loss < best_loss:
+        else:
+            wait = 0
+
             # Update new best
             best_weight = deepcopy(model_torch.state_dict())
             best_loss = loss
-            wait = 0
-        else:
-            wait = 0
-        
-        previous_loss = loss
     
     model_torch.load_state_dict(best_weight)            
     return model_torch

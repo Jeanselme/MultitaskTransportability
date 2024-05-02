@@ -20,7 +20,22 @@ def pandas_to_list(x):
         print(x)
         raise ValueError("Data not in the right format")
 
-def create_nn(inputdim, layers, layer_unit = nn.Linear, activation = 'ReLU'):
+def torch_to_pandas(tensor, template, mask = None):
+    """
+        Reshape the tensor to match the original template
+
+        Args:
+            tensor (_type_): _description_
+            template (_type_): _description_
+    """
+    result = []
+    mask = [True] * len(template.columns) if mask is None else mask
+    for i, patient in enumerate(template.index.unique(level = 0)):
+        selection = template.index.get_level_values(0) == patient
+        result.append(pd.DataFrame(tensor[i, :np.sum(selection) - 1].cpu().detach().numpy(), index = template.index[selection][:-1], columns = template.columns[mask]))
+    return pd.concat(result, axis = 0)
+
+def create_nn(inputdim, layers, layer_unit = nn.Linear, activation = 'ReLU', dropout = 0.):
     """
         Create a simple multi layer perceptron
     """
@@ -38,6 +53,8 @@ def create_nn(inputdim, layers, layer_unit = nn.Linear, activation = 'ReLU'):
 
     for hidden in layers:
         modules.append(layer_unit(prevdim, hidden, bias = True))
+        if dropout > 0:
+            modules.append(nn.Dropout(p = dropout))
         modules.append(act)
         prevdim = hidden
 
@@ -52,10 +69,8 @@ def get_last_observed(x, l):
     else:
         device = torch.device("cpu")
 
-    index = torch.arange(x.size(1)).repeat(x.size(0), 1).to(device)
-    last = index == l.unsqueeze(1).repeat(1, x.size(1))
-
-    return x[last]
+    index = torch.arange(x.size(0)).to(device)
+    return x[index, l]
 
 def ones_like(x):
     return torch.ones((x.size(0), x.size(1), 1), requires_grad = True, device = x.get_device() if x.is_cuda else 'cpu')
@@ -65,7 +80,7 @@ def sort_given_t(*args, t):
         Sort any parameter (tensor of same size than t) with regard to t
         Necessary for DeepSurv that assume all sorted for loss computation
     """
-    t, order = torch.sort(t, 0, descending = True) # Wants data to be from unobserved to observed
+    t, order = t.sort(dim = 0, descending = True) # Wants data to be from unobserved to observed
     order = order.squeeze()
     return [arg[order] for arg in args] + [t]
 
@@ -74,10 +89,12 @@ def compute_dwa(previous, previous_2, T = 2):
         Computes the weights given the two last loss 
         Following Dynamic Weighting Average
     """
-    if 'observational' not in previous_2 or 'observational' not in previous:
+    if previous_2 is None:
         return {}
     else:
-        weights = nn.Softmax(0)((previous['observational'].detach() / (T*previous_2['observational'].detach())))
+        weights = (previous / (T * previous_2)).abs()
+        weights = torch.nan_to_num(weights, nan = 0, posinf = 0, neginf = 0) # Null values remove
+        weights = nn.Softmax(0)(weights)
         return {'observational': weights}
 
 class PositiveLinear(nn.Module):
@@ -144,8 +161,8 @@ class BatchForward(nn.Module):
 
         return [results[k] for k in results]
 
-    def forward(self, *args, batch = None):
-        return self.batch(self.forward_batch, *args, batch = batch)
+    def forward(self, *args, batch = None, **kwargs):
+        return self.batch(self.forward_batch, *args, batch = batch, **kwargs)
 
     def predict(self, *args, batch = None, **kwargs):
         return self.batch(self.predict_batch, *args, batch = batch, **kwargs)[0]

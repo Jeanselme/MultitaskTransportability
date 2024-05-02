@@ -78,15 +78,14 @@ class GRUD(nn.Module):
     
     def __init__(self, inputdim, hidden, layers, bias=True, batch_first=True, imputation=False, dropout = 0):
         super(GRUD, self).__init__()
-        self.cell = GRUDCell(inputdim, 1, hidden, bias, dropout) # Only time since last (put inputdim if all modelled)
+        self.cell = GRUDCell(inputdim, inputdim, hidden, bias, dropout) # Only time since last (put inputdim if all modelled)
         self.num_layers = layers
         self.hidden_size = hidden
         self.batch_first = batch_first
         self.imputation = imputation
 
-    def forward(self, input, times, mask, length, hx = None):
+    def forward(self, input, ie, mask, length, hx = None):
         # Does not deal with Packed as it seems they have strange behavior
-        orig_input = input
         max_batch_size = input.size(0) if self.batch_first else input.size(1)
         max_time = int(length.max().item())
 
@@ -101,9 +100,8 @@ class GRUD(nn.Module):
         outputs = None
         for i in range(max_time):           
             # TODO: adapt to do batch_first = False and to have same format than GRU (with packed)
-            hx = self.cell.forward(torch.squeeze(input[:,i:i+1,:]),
-                    times[:,i:i+1],
-                    hx)
+            ti = ie[:,i,:]  # Time since last observations
+            hx = self.cell.forward(input[:,i,:], ti, hx)
 
             if outputs is None:
                 outputs = hx.unsqueeze(1)
@@ -113,10 +111,5 @@ class GRUD(nn.Module):
         empty = torch.zeros(max_batch_size, 1, self.hidden_size, dtype=input.dtype, device=input.get_device() if input.is_cuda else 'cpu')
         for i in range(max_time, input.size(1)): 
             outputs = torch.cat((outputs, empty), 1)
-        
-        # Remove last steps that are unecessary
-        end = outputs[0, length[0].long() - 1, :].unsqueeze(0)
-        for i in range(1, input.size()[0]):
-            end = torch.cat((end, outputs[i, length[i].long() - 1, :].unsqueeze(0)), 0)
 
-        return outputs, (end, None)
+        return outputs, 
